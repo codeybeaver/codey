@@ -5,8 +5,7 @@
   "main": "cdy.js",
   "type": "module",
   "bin": {
-    "cdy": "./dist/cdy.js",
-    "cdyp": "./dist/cdyp"
+    "cdy": "./dist/cdy.js"
   },
   "scripts": {
     "build": "tsc && chmod +x dist/cdy.js",
