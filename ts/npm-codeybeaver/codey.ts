@@ -73,14 +73,20 @@ async function handleFormat({
     if (isPiped) {
       spinner = ora("Receiving and formatting input...").start();
     }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+    });
+
     // Setup marked-terminal renderer for syntax highlighting
     // @ts-ignore – marked-terminal lacks full typings
     marked.setOptions({ renderer: new TerminalRenderer() });
-    const formattedOutput = marked(input);
+    const renderedOutput = marked(formattedInput);
     if (spinner) {
       spinner.stop();
     }
-    process.stdout.write(`${formattedOutput}\n`);
+    process.stdout.write(`${renderedOutput}\n`);
     process.exit(0);
   } catch (err) {
     console.error("Error formatting input:", err);

@@ -3403,3 +3403,823 @@ Send a prompt (question, request, etc.) directly to the LLM.
   (You can also check `cdy --help` for the full list of available options.)
 ```
 
+
+# === ASSISTANT ===
+
+Here's the updated README section for **Usage**, reflecting the return of the `prompt` subcommand and including the `--model` option with examples for `cdy prompt`. I've kept the structure consistent with your provided snippet and ensured all details are accurate.
+
+```markdown
+## Usage
+
+### **cdy** - Main Command
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directly to the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  cdy prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | cdy prompt
+  ```
+
+- **Optional flags:**
+
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render
+    or process the complete result at once instead of streaming line by line.
+
+    While buffering, a spinner is shown to indicate work is in progress.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
+    ```
+
+  - `--markdown`  
+    Buffer the LLM's entire output and display it with Markdown and syntax
+    highlighting in your terminal. This is ideal for outputs containing code,
+    tables, or other formatted Markdown.
+
+    While buffering, a spinner is shown to indicate work is in progress.  
+    You do **not** need to specify `--buffer` along with `--markdown`.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
+    ```
+
+  - `--model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI account or xAI account.
+
+    **Example:**
+
+    ```sh
+    cdy prompt --model gpt-4o "What is the capital of France?"
+    ```
+
+  (You can also check `cdy prompt --help` for the full list of available options.)
+```
+
+Let me know if you want to update other sections of the README (like `Example Workflows` or `Help`) to match this change!
+
+# === USER ===
+
+i've decided to change the command from 'cdy' to 'codey'.
+
+now, i've also decided to make another change which i need your help with. i've decided to get rid of the --markdown and --buffer options and do this in a different way. i'd like to create a new command called "format" which takes the input, either from standard input or from the command line, and applies syntax highlighting to it. this will be a separate command from "prompt". can you please rewrite the code to reflect this change?
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  buffer,
+  markdown,
+  model,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (markdown) {
+      const spinner = ora("Waiting for response…").start();
+      let out = "";
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) {
+          out += c.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      // @ts-ignore – marked-terminal lacks full typings
+      marked.setOptions({ renderer: new TerminalRenderer() });
+      process.stdout.write(`${marked(out)}\n`);
+    } else if (buffer) {
+      const spinner = ora("Waiting for response…").start();
+      let out = "";
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) {
+          out += c.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      process.stdout.write(`${out}\n`);
+    } else {
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) {
+          process.stdout.write(c.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--buffer", "Buffer full output before printing")
+  .option("--markdown", "Buffer + render as Markdown with syntax highlighting")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(
+    async (
+      input: string | undefined,
+      opts: { buffer?: boolean; markdown?: boolean; model: string },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: !!opts.buffer,
+        markdown: !!opts.markdown,
+        model: opts.model || "grok-3",
+      });
+    },
+  );
+
+program.parse();
+```
+
+# === ASSISTANT ===
+
+I'm happy to help with these changes. Below is the updated code for your CLI tool, reflecting the following modifications:
+
+1. **Renamed the CLI from `cdy` to `codey`**: Changed the program name to `codey`.
+2. **Removed `--buffer` and `--markdown` options from the `prompt` command**: The `prompt` command now streams output by default without buffering or formatting options.
+3. **Added a new `format` command**: This command takes input (from command line or stdin) and applies Markdown syntax highlighting to it using `marked` and `marked-terminal`.
+
+Here's the complete updated code:
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    process.stdout.write(`${marked(input)}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(
+    async (
+      input: string | undefined,
+      opts: { model: string },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        model: opts.model || "grok-3",
+      });
+    },
+  );
+
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(
+    async (input: string | undefined) => {
+      let formatText = input;
+      if (!formatText && !process.stdin.isTTY) {
+        formatText = (await readStdin()).trim();
+      }
+      if (!formatText) {
+        console.error("No input supplied for formatting (argument or stdin required).");
+        process.exit(1);
+      }
+      await handleFormat({
+        input: formatText,
+      });
+    },
+  );
+
+program.parse();
+```
+
+### Key Changes Explained:
+1. **CLI Name Changed to `codey`**:
+   - Updated `program.name("codey")` to reflect the new command name.
+
+2. **Removed `--buffer` and `--markdown` from `prompt` Command**:
+   - Simplified the `prompt` command to only support `--model`.
+   - Removed buffering and Markdown rendering logic from `handlePrompt` function, so it now streams output by default.
+
+3. **Added `format` Command**:
+   - Created a new command `format [input]` that accepts input from the command line or stdin.
+   - Added a `handleFormat` function to process the input and render it as highlighted Markdown using `marked` and `marked-terminal`.
+
+### Usage Examples:
+- **Prompting the LLM (streaming output):**
+  ```sh
+  codey prompt "What is 1 + 1?"
+  echo "Write a Python script for quicksort." | codey prompt
+  codey prompt --model gpt-4o "Explain async/await in JavaScript."
+  ```
+
+- **Formatting Markdown with Syntax Highlighting:**
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  ```
+
+Let me know if you want an updated README to reflect these changes or if you have any other modifications in mind!
+
+# === USER ===
+
+great. now, i want to make another change. the "format" function should always have a spinner while the output is generating. can you please make that change?
+
+# === ASSISTANT ===
+
+I'm happy to add a spinner to the `format` command to show while the output is being processed. Since `format` is not generating content from an LLM (just processing input), the spinner will be shown briefly during the formatting step for consistency with user expectations.
+
+Below is the updated code with a spinner added to the `handleFormat` function:
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    const spinner = ora("Formatting input...").start();
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const formattedOutput = marked(input);
+    spinner.stop();
+    process.stdout.write(`${formattedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(
+    async (
+      input: string | undefined,
+      opts: { model: string },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        model: opts.model || "grok-3",
+      });
+    },
+  );
+
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(
+    async (input: string | undefined) => {
+      let formatText = input;
+      if (!formatText && !process.stdin.isTTY) {
+        formatText = (await readStdin()).trim();
+      }
+      if (!formatText) {
+        console.error("No input supplied for formatting (argument or stdin required).");
+        process.exit(1);
+      }
+      await handleFormat({
+        input: formatText,
+      });
+    },
+  );
+
+program.parse();
+```
+
+### Key Change Explained:
+- **Added Spinner to `handleFormat`**: 
+  - A spinner is now shown with the message "Formatting input..." while the Markdown is being processed and rendered with syntax highlighting.
+  - The spinner starts before the formatting begins and stops right before the formatted output is written to the terminal.
+
+### Usage Example:
+- **Formatting with Spinner:**
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  ```
+  In both cases, you'll see a spinner while the formatting is being applied, which will disappear once the highlighted output is displayed.
+
+Let me know if you want to adjust the spinner text or behavior, or if you'd like an updated README to reflect this change!
+
+# === USER ===
+
+i don't think that works. the problem is that the previous stage is streaming the output before the format command runs the spinner. by the time the spinner runs, there is nothing to wait for, as formatting happens almost instantly. we need to change the logic so that as soon as the streaming *begins*, the spinner starts. can you please make that change?
+
+# === ASSISTANT ===
+
+I understand the issue. Since `format` is often used in a pipeline with `prompt` (e.g., `codey prompt "some input" | codey format`), the spinner in `handleFormat` appears too late because the streaming from `prompt` has already happened. To address this, we need to show a spinner as soon as the `format` command detects that it's receiving streamed input from stdin (i.e., piped input from `prompt` or another source). This means starting the spinner before reading from `stdin` if input is being piped.
+
+Below is the updated code to achieve this behavior: the spinner in the `format` command will start as soon as it detects piped input, indicating that it's waiting to receive and process the streamed content.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const formattedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(
+    async (
+      input: string | undefined,
+      opts: { model: string },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        model: opts.model || "grok-3",
+      });
+    },
+  );
+
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(
+    async (input: string | undefined) => {
+      let formatText = input;
+      const isPiped = !process.stdin.isTTY && !input;
+      if (isPiped) {
+        const spinner = ora("Receiving input...").start();
+        formatText = (await readStdin()).trim();
+        spinner.text = "Formatting input...";
+        spinner.stop();
+      }
+      if (!formatText) {
+        console.error("No input supplied for formatting (argument or stdin required).");
+        process.exit(1);
+      }
+      await handleFormat({
+        input: formatText,
+        isPiped,
+      });
+    },
+  );
+
+program.parse();
+```
+
+### Key Change Explained:
+- **Spinner for Piped Input in `format` Command**:
+  - Added a check for whether input is being piped (`isPiped = !process.stdin.isTTY && !input`) in the `format` command's action handler.
+  - If input is piped, a spinner starts with the message "Receiving input..." before reading from `stdin`. This ensures the spinner appears as soon as streaming input begins.
+  - Updated the spinner text to "Formatting input..." just before stopping it, to indicate the transition to the formatting step.
+  - Passed `isPiped` to `handleFormat` to potentially show a spinner there if needed, though in this case, the spinner is managed directly in the action handler for better control over timing.
+
+### Usage Example:
+- **Piping Output from `prompt` to `format` with Spinner:**
+  ```sh
+  codey prompt "Write a Python script for quicksort in Markdown." | codey format
+  ```
+  When this runs, you'll see a spinner with "Receiving input..." while the `prompt` command streams its output to `format`, and it will change to "Formatting input..." just before the formatted output is displayed.
+
+- **Direct Input to `format` (No Spinner for Instant Input):**
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+  In this case, since the input is provided directly as an argument, no spinner is shown because processing is instantaneous.
+
+This approach ensures the spinner appears during the streaming phase when input is piped, providing visual feedback to the user that something is happening.
+
+Let me know if you want to adjust the spinner messages, add a spinner for direct input cases, or update the README to reflect this change!
+
+# === USER ===
+
+ok, that may work. however, i have a typescript error. how do i specify that the spinner is the type of the return value of the ora function?
+
+```typescript
+    let spinner;
+```
+
+# === ASSISTANT ===
+
+You're encountering a TypeScript error because `spinner` is declared without a type, and TypeScript can't infer it since it's initially `undefined` and only assigned a value conditionally. To fix this, you need to explicitly type `spinner` as the return type of the `ora` function, which is `Ora` from the `ora` package.
+
+Here's how you can specify the type for `spinner`:
+
+```typescript
+import ora, { Ora } from 'ora';
+
+// ... other code ...
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const formattedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+```
+
+### Key Change Explained:
+- **Import `Ora` Type from `ora`**: Added `Ora` to the import statement from the `ora` package. This is the type that represents the spinner object returned by `ora()`.
+- **Type `spinner` as `Ora | undefined`**: Since `spinner` might not be assigned a value (if `isPiped` is false), we type it as `Ora | undefined` to indicate it can be either an `Ora` instance or `undefined`. This allows TypeScript to understand that it might not always be initialized but will be an `Ora` object when it is.
+
+### Alternative:
+If you prefer not to import the `Ora` type explicitly or if TypeScript still complains (due to version mismatches or missing type definitions), you can use a more general type like `any` temporarily, though this is less ideal for type safety:
+
+```typescript
+let spinner: any;
+```
+
+Or, you can initialize it as `undefined` with a more explicit type:
+
+```typescript
+let spinner: ReturnType<typeof ora> | undefined;
+```
+
+However, importing `Ora` as shown above is the recommended approach for clarity and maintainability.
+
+### Full Updated Code Snippet for `format` Command Action:
+Here's how it fits into the `format` command's action for completeness:
+
+```typescript
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(
+    async (input: string | undefined) => {
+      let formatText = input;
+      const isPiped = !process.stdin.isTTY && !input;
+      let spinner: Ora | undefined;
+      if (isPiped) {
+        spinner = ora("Receiving input...").start();
+        formatText = (await readStdin()).trim();
+        if (spinner) {
+          spinner.text = "Formatting input...";
+        }
+      }
+      if (!formatText) {
+        if (spinner) spinner.stop();
+        console.error("No input supplied for formatting (argument or stdin required).");
+        process.exit(1);
+      }
+      await handleFormat({
+        input: formatText,
+        isPiped,
+      });
+    },
+  );
+```
+
+Let me know if you encounter any further TypeScript issues or if you want to refine the spinner behavior further!
+
+# === USER ===
+
+great, now i have one final request for the "format" command. not only do i want syntax highlighting, i actually want to set to a max width of 80 (eventually, this will be configurable, but for now i want 80, which is standard). i think we can use some library like prettier to format markdown in this manner - can we do that? we should fix the max width and get rid of extra newlines, whatever prettier does, or if prettier doesn't work, then we need another library.
