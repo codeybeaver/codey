@@ -22,10 +22,12 @@ async function handlePrompt({
   prompt,
   buffer,
   markdown,
+  model,
 }: {
   prompt: string;
   buffer: boolean;
   markdown: boolean;
+  model: string;
 }) {
   try {
     const stream = await generateChatCompletionStream({
@@ -35,7 +37,7 @@ async function handlePrompt({
           content: prompt,
         },
       ],
-      model: "grok-3",
+      model
     });
 
     async function* withStreamTimeout<T>(
@@ -106,10 +108,14 @@ program
     "--markdown",
     "Buffer and display the output as Markdown with syntax highlighting"
   )
+  .option(
+    "--model <model>",
+    "Model to use (default: 'grok-3')",
+  )
   .action(
     async (
       input: string | undefined,
-      options: { buffer?: boolean; markdown?: boolean }
+      options: { buffer?: boolean; markdown?: boolean; model?: string },
     ) => {
       let promptText: string | undefined = input;
       if (!promptText && !process.stdin.isTTY) {
@@ -123,6 +129,7 @@ program
         prompt: promptText,
         buffer: Boolean(options.buffer),
         markdown: Boolean(options.markdown),
+        model: options.model || "grok-3",
       });
     }
   );

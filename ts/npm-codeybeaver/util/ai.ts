@@ -56,9 +56,7 @@ const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
   "o3-mini": "openai",
 };
 
-function getProvider(
-  model: z.infer<typeof ModelsSchema>,
-): z.infer<typeof ProviderSchema> {
+function getProvider(model: string): z.infer<typeof ProviderSchema> {
   const provider = ModelToProviderMap[model];
   if (!provider) {
     throw new Error(`No provider found for model: ${model}`);
@@ -72,7 +70,7 @@ export async function generateChatCompletionStream({
   model,
 }: {
   messages: { role: "assistant" | "user" | "system"; content: string }[];
-  model: z.infer<typeof ModelsSchema>;
+  model: string;
 }) {
   let aiApi: OpenAI;
   let baseURL: string | undefined;
