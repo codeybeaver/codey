@@ -22,22 +22,20 @@ This provides two global commands:
 
 ## Usage
 
-### 1. **cdy** - Main Command
+### **cdy** - Main Command
 
-#### Prompt Subcommand
-
-Send a prompt (question, request, etc.) directed at the LLM.
+Send a prompt (question, request, etc.) directly to the LLM.
 
 - **Via command-line argument:**
 
   ```sh
-  cdy prompt "What is 1 + 1?"
+  cdy "What is 1 + 1?"
   ```
 
 - **Via standard input (pipe support):**
 
   ```sh
-  echo "Write a Python hello world script" | cdy prompt
+  echo "Write a Python hello world script" | cdy
   ```
 
 - **Optional flags:**
@@ -52,8 +50,8 @@ Send a prompt (question, request, etc.) directed at the LLM.
     **Examples:**
 
     ```sh
-    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
-    echo "Write Python code for a binary search" | cdy prompt --buffer
+    cdy --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy --buffer
     ```
 
   - `--markdown`  
@@ -67,12 +65,23 @@ Send a prompt (question, request, etc.) directed at the LLM.
     **Examples:**
 
     ```sh
-    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
-    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
+    cdy --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy --markdown
     ```
 
-  (You can also check `cdy prompt --help` for the full list of available
-  options.)
+  (You can also check `cdy --help` for the full list of available options.)
+
+---
+
+## **cdyp** - Convenience Shortcut
+
+`cdyp` is a shortcut for `cdy`. With `cdyp`, everything after the command is
+treated as your prompt (no need for quotes):
+
+```sh
+cdyp What is 2 plus 2?
+cdyp Generate a bash script that prints the current date
+```
 
 ---
 
@@ -82,7 +91,6 @@ Run the following to see more options:
 
 ```sh
 cdy --help
-cdy prompt --help
 ```
 
 ---
@@ -91,13 +99,16 @@ cdy prompt --help
 
 ```sh
 # Simple math prompt
-cdyp What is 2 plus 2?
+cdy "What is 2 plus 2?"
 
 # Code generation
-cdy prompt "Generate a JavaScript function that reverses an array"
+cdy "Generate a JavaScript function that reverses an array"
 
 # Pipe input as prompt
-cat my-instructions.txt | cdy prompt
+cat my-instructions.txt | cdy
+
+# Markdown rendering
+cdy --markdown "Show me a Python bubble sort function with comments."
 ```
 
 ---
@@ -108,8 +119,4 @@ MIT
 
 ---
 
-_Developed by [Your Name or Organization]_ 🦫
-
-```
-
-```
+_Developed by Identellica LLC_ 🦫
