@@ -40,28 +40,24 @@ Send a prompt (question, request, etc.) directed at the LLM.
   echo "Write a Python hello world script" | cdy prompt
   ```
 
-- **Optional flags:**  
-  (Check `cdy prompt --help` for available options specific to your
-  installation.)
+- **Optional flags:**
 
----
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render
+    or process the complete result at once instead of streaming line by line.
 
-### 2. **cdyp** - Convenience Shortcut
+    While buffering, a spinner is shown to indicate work is in progress.
 
-`cdyp` is a shortcut for `cdy prompt`.  
-With `cdyp`, everything after the command is treated as your prompt (no need for
-quotes):
+    **Examples:**
 
-```sh
-cdyp What is 1 + 1?
-cdyp Write a Python hello world script
-```
+    ```sh
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
+    ```
 
-This is equivalent to:
-
-```sh
-cdy prompt "What is 1 + 1?"
-```
+  (You can also check `cdy prompt --help` for the full list of available
+  options.)
 
 ---
 
