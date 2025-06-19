@@ -62,14 +62,24 @@ async function handlePrompt({
 
 async function handleFormat({
   input,
+  isPiped,
 }: {
   input: string;
+  isPiped: boolean;
 }) {
   try {
+    let spinner: ReturnType<typeof ora> | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
     // Setup marked-terminal renderer for syntax highlighting
     // @ts-ignore – marked-terminal lacks full typings
     marked.setOptions({ renderer: new TerminalRenderer() });
-    process.stdout.write(`${marked(input)}\n`);
+    const formattedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedOutput}\n`);
     process.exit(0);
   } catch (err) {
     console.error("Error formatting input:", err);
@@ -108,8 +118,12 @@ program
   .description("Format and highlight Markdown input (argument or stdin)")
   .action(async (input: string | undefined) => {
     let formatText = input;
-    if (!formatText && !process.stdin.isTTY) {
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      const spinner = ora("Receiving input...").start();
       formatText = (await readStdin()).trim();
+      spinner.text = "Formatting input...";
+      spinner.stop();
     }
     if (!formatText) {
       console.error(
@@ -119,6 +133,7 @@ program
     }
     await handleFormat({
       input: formatText,
+      isPiped,
     });
   });
 
