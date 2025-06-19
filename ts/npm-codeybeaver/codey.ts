@@ -91,7 +91,7 @@ async function handlePrompt({
 /* ──────────────────────────────────────────── CLI definition ────────────── */
 
 program
-  .name("cdy")
+  .name("codey")
   .description("Codey Beaver CLI – LLM-powered coding assistant")
   .version("0.1.0");
 

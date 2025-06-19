@@ -2,13 +2,13 @@
   "name": "codeybeaver",
   "version": "0.0.1",
   "description": "LLMs on the command line.",
-  "main": "cdy.js",
+  "main": "codey.js",
   "type": "module",
   "bin": {
-    "cdy": "./dist/cdy.js"
+    "codey": "./dist/codey.js"
   },
   "scripts": {
-    "build": "tsc && chmod +x dist/cdy.js",
+    "build": "tsc && chmod +x dist/codey.js",
     "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint --write --unsafe",

@@ -15,14 +15,14 @@ npm install -g codeybeaver
 
 This provides two global commands:
 
-- `cdy` &nbsp;—&nbsp; Main entry point for Codey Beaver
-- `cdyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
+- `codey` &nbsp;—&nbsp; Main entry point for Codey Beaver
+- `codeyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
 
 ---
 
 ## Usage
 
-### **cdy** - Main Command
+### **codey** - Main Command
 
 #### Prompt Subcommand
 
@@ -31,13 +31,13 @@ Send a prompt (question, request, etc.) directly to the LLM.
 - **Via command-line argument:**
 
   ```sh
-  cdy prompt "What is 1 + 1?"
+  codey prompt "What is 1 + 1?"
   ```
 
 - **Via standard input (pipe support):**
 
   ```sh
-  echo "Write a Python hello world script" | cdy prompt
+  echo "Write a Python hello world script" | codey prompt
   ```
 
 - **Optional flags:**
@@ -52,8 +52,8 @@ Send a prompt (question, request, etc.) directly to the LLM.
     **Examples:**
 
     ```sh
-    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
-    echo "Write Python code for a binary search" | cdy prompt --buffer
+    codey prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | codey prompt --buffer
     ```
 
   - `--markdown`  
@@ -67,8 +67,8 @@ Send a prompt (question, request, etc.) directly to the LLM.
     **Examples:**
 
     ```sh
-    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
-    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
+    codey prompt --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | codey prompt --markdown
     ```
 
   - `--model <model>`  
@@ -79,10 +79,10 @@ Send a prompt (question, request, etc.) directly to the LLM.
     **Example:**
 
     ```sh
-    cdy prompt --model gpt-4o "What is the capital of France?"
+    codey prompt --model gpt-4o "What is the capital of France?"
     ```
 
-  (You can also check `cdy prompt --help` for the full list of available
+  (You can also check `codey prompt --help` for the full list of available
   options.)
 
 ---
@@ -92,7 +92,7 @@ Send a prompt (question, request, etc.) directly to the LLM.
 Run the following to see more options:
 
 ```sh
-cdy --help
+codey --help
 ```
 
 ---
@@ -101,16 +101,16 @@ cdy --help
 
 ```sh
 # Simple math prompt
-cdy prompt "What is 2 plus 2?"
+codey prompt "What is 2 plus 2?"
 
 # Code generation
-cdy prompt "Generate a JavaScript function that reverses an array"
+codey prompt "Generate a JavaScript function that reverses an array"
 
 # Pipe input as prompt
-cat my-instructions.txt | cdy prompt
+cat my-instructions.txt | codey prompt
 
 # Markdown rendering
-cdy --markdown "Show me a Python bubble sort function with comments."
+codey --markdown "Show me a Python bubble sort function with comments."
 ```
 
 ---
