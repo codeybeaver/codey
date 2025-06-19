@@ -2491,3 +2491,66 @@ i'm haveing a type error with this line. i want to try to ignore it for now. how
         renderer: new TerminalRenderer(),
       });
 ```
+
+# === ASSISTANT ===
+
+You can suppress a TypeScript error on a specific line by using `// @ts-expect-error` or `// @ts-ignore` directly above the line you want to ignore.
+
+**Difference:**
+- `@ts-ignore` — Always ignores the next line’s error (not recommended for long-term use; but fine for now).
+- `@ts-expect-error` — Ignores, but will warn if there is NOT an error on that line in the future.
+
+For your case, put this just above the line:
+
+```typescript
+// @ts-ignore
+marked.setOptions({
+  renderer: new TerminalRenderer(),
+});
+```
+
+**That will tell TypeScript to ignore any error on that line.**
+
+---
+
+**Tip:**  
+If you want a permanent fix, the real cause is [marked-terminal is not typed for the current marked will warn, but is compatible in JS]. For production, you’d consider writing a small type shim or using any-casts, but for short-term use the above is safe.
+
+---
+
+**Summary table**
+
+| Ignore type error    | How to write it    |
+|---------------------|--------------------|
+| ignore next line    | `// @ts-ignore`    |
+| expect error present| `// @ts-expect-error`|
+
+---
+
+Let me know if you want a type-safe workaround!
+
+# === USER ===
+
+can you add the documentation for "--markdown" to the readme?
+
+```markdown
+- **Optional flags:**
+
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render
+    or process the complete result at once instead of streaming line by line.
+
+    While buffering, a spinner is shown to indicate work is in progress.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
+    ```
+
+  (You can also check `cdy prompt --help` for the full list of available
+  options.)
+
+```

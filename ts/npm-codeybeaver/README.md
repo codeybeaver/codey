@@ -56,6 +56,21 @@ Send a prompt (question, request, etc.) directed at the LLM.
     echo "Write Python code for a binary search" | cdy prompt --buffer
     ```
 
+  - `--markdown`  
+    Buffer the LLM's entire output and display it with Markdown and syntax
+    highlighting in your terminal. This is ideal for outputs containing code,
+    tables, or other formatted Markdown.
+
+    While buffering, a spinner is shown to indicate work is in progress.  
+    You do **not** need to specify `--buffer` along with `--markdown`.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
+    ```
+
   (You can also check `cdy prompt --help` for the full list of available
   options.)
 
