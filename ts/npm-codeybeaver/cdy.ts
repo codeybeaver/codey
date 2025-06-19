@@ -15,7 +15,7 @@ async function readStdin(): Promise<string> {
   });
 }
 
-async function handlePrompt(prompt: string) {
+async function handlePrompt({ prompt }: { prompt: string }) {
   try {
     const stream = await generateChatCompletionStream({
       messages: [
@@ -61,12 +61,12 @@ program
   .action(async (input: string | undefined) => {
     if (input) {
       // Argument prompt
-      await handlePrompt(input);
+      await handlePrompt({ prompt: input });
     } else if (!process.stdin.isTTY) {
       // stdin is not a terminal => input is being piped in
       const stdinInput = (await readStdin()).trim();
       if (stdinInput.length > 0) {
-        await handlePrompt(stdinInput);
+        await handlePrompt({ prompt: stdinInput });
       } else {
         console.error("No input provided via stdin or as argument.");
         process.exit(1);

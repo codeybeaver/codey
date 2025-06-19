@@ -17,7 +17,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-const ModelsSchema = z
+export const ModelsSchema = z
   .enum([
     "grok-3-beta",
     "grok-3",
