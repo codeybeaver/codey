@@ -7,8 +7,6 @@ import { generateChatCompletionStream } from "./util/ai.js";
 
 const program = new Command();
 
-/* ───────────────────────────────────────────────────── Helpers ──────────── */
-
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
@@ -88,14 +86,11 @@ async function handlePrompt({
   }
 }
 
-/* ──────────────────────────────────────────── CLI definition ────────────── */
-
 program
   .name("codey")
   .description("Codey Beaver CLI – LLM-powered coding assistant")
   .version("0.1.0");
 
-/* prompt sub-command (restored) */
 program
   .command("prompt [input]")
   .description("Send a prompt to the LLM (argument or stdin)")
