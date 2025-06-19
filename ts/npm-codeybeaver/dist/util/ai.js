@@ -35,7 +35,7 @@ export async function generateChatCompletionStream({ messages, model, }) {
     let baseURL;
     let apiKey;
     let modelName;
-    if (model === "grok-3-beta") {
+    if (model === "grok-3-beta" || model === "grok-3") {
         apiKey = process.env.XAI_API_KEY;
         baseURL = "https://api.x.ai/v1";
         modelName = "grok-3-beta";

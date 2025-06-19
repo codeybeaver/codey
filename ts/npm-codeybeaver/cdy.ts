@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { generateChatCompletionStream } from "util/ai.js";
+import { generateChatCompletionStream } from "./util/ai.js";
 
 const program = new Command();
 
@@ -15,17 +15,58 @@ async function readStdin(): Promise<string> {
   });
 }
 
+async function handlePrompt(prompt: string) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3", // Pass the selected model from settings (parameterize if needed)
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    // 15s timeout per chunk
+    for await (const chunk of withStreamTimeout(stream, 15000)) {
+      if (chunk.choices[0]?.delta.content) {
+        process.stdout.write(chunk.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
 program
   .command("prompt [input]")
   .description("Send a prompt to the LLM (from arg or stdin)")
   .action(async (input: string | undefined) => {
     if (input) {
-      console.log("Prompt (from arg):", input);
+      // Argument prompt
+      await handlePrompt(input);
     } else if (!process.stdin.isTTY) {
       // stdin is not a terminal => input is being piped in
-      const stdinInput = await readStdin();
+      const stdinInput = (await readStdin()).trim();
       if (stdinInput.length > 0) {
-        console.log("Prompt (from stdin):", stdinInput);
+        await handlePrompt(stdinInput);
       } else {
         console.error("No input provided via stdin or as argument.");
         process.exit(1);
