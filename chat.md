@@ -170,3 +170,71 @@ Let me know if you want a ready-to-copy example with a specific package!
 # === USER ===
 
 does commander support typescript?
+
+# === ASSISTANT ===
+
+**Yes, [commander](https://www.npmjs.com/package/commander) (the popular Node.js CLI library) has excellent TypeScript support!**  
+You can import it as a module, get full type checking/intellisense, and define your CLI options and commands in a type-safe way.
+
+### How to Use Commander with TypeScript
+
+#### 1. Install
+
+```sh
+npm install commander
+```
+
+TypeScript type definitions are included with Commander since v7 (no need for `@types/commander`).
+
+#### 2. Simple Example (`cdy.ts`)
+
+```typescript
+import { Command } from 'commander';
+
+const program = new Command();
+
+program
+  .name('cdy')
+  .version('0.1.0')
+  .option('-p, --prompt <text>', 'Prompt to send to the LLM');
+
+program.parse();
+
+// Get the parsed options
+const options = program.opts();
+
+if (options.prompt) {
+  console.log('Prompt:', options.prompt);
+} else {
+  console.log('No prompt provided.');
+}
+```
+
+#### 3. Compile and Run
+
+```sh
+tsc cdy.ts
+node cdy.js -p "What is 1 + 1?"
+# Output: Prompt: What is 1 + 1?
+```
+
+#### 4. TypeScript Features
+- Full autocompletion in editors like VSCode
+- Strongly typed options and arguments if you want to extend for richer CLI programs
+
+**Tip:** For more advanced usage and custom command handling, see [Commander’s TypeScript documentation](https://github.com/tj/commander.js/#typescript).
+
+---
+
+**Summary:**  
+Commander fully supports TypeScript; just install it and use ES module imports. No extra packages needed!
+
+# === USER ===
+
+i'd like to change the behavior slightly. i want to use git-style command, meaning like this:
+
+```sh
+cdy prompt "what is 1 + 1?"
+```
+
+each command may then take additional options. how can we make this change?
