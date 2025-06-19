@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
 import { generateChatCompletionStream } from "./util/ai.js";
-// import { marked } from "marked"; // <-- for future markdown rendering
 
 const program = new Command();
 
@@ -20,7 +21,12 @@ async function readStdin(): Promise<string> {
 async function handlePrompt({
   prompt,
   buffer,
-}: { prompt: string; buffer: boolean }) {
+  markdown,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+}) {
   try {
     const stream = await generateChatCompletionStream({
       messages: [
@@ -46,7 +52,23 @@ async function handlePrompt({
       }
     }
 
-    if (buffer) {
+    if (markdown) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+
+      // Setup marked-terminal renderer for syntax highlighting
+      marked.setOptions({
+        // @ts-ignore:
+        renderer: new TerminalRenderer(),
+      });
+      process.stdout.write(`${marked(output)}\n`);
+    } else if (buffer) {
       const spinner = ora("Waiting for response...").start();
       let output = "";
       for await (const chunk of withStreamTimeout(stream, 15000)) {
@@ -76,19 +98,31 @@ program
   .description("Send a prompt to the LLM (from arg or stdin)")
   .option(
     "--buffer",
-    "Buffer the entire output before displaying (useful for markdown rendering)",
+    "Buffer the entire output before displaying (useful for processing the complete result)",
   )
-  .action(async (input: string | undefined, options: { buffer?: boolean }) => {
-    let promptText: string | undefined = input;
-    if (!promptText && !process.stdin.isTTY) {
-      // stdin is not a terminal => input is being piped in
-      promptText = (await readStdin()).trim();
-    }
-    if (!promptText) {
-      console.error("No input provided via stdin or as argument.");
-      process.exit(1);
-    }
-    await handlePrompt({ prompt: promptText, buffer: !!options.buffer });
-  });
+  .option(
+    "--markdown",
+    "Buffer and display the output as Markdown with syntax highlighting",
+  )
+  .action(
+    async (
+      input: string | undefined,
+      options: { buffer?: boolean; markdown?: boolean },
+    ) => {
+      let promptText: string | undefined = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: Boolean(options.buffer),
+        markdown: Boolean(options.markdown),
+      });
+    },
+  );
 
 program.parse();

@@ -2131,4 +2131,363 @@ Let me know if you want an example with markdown highlighting!
 
 # === USER ===
 
+can you add information about this new setting to the readme?
 
+```markdown
+### 1. **cdy** - Main Command
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directed at the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  cdy prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | cdy prompt
+  ```
+
+- **Optional flags:**  
+  (Check `cdy prompt --help` for available options specific to your
+  installation.)
+
+```
+
+# === ASSISTANT ===
+
+Certainly! Here’s how you can describe the new `--buffer` option in your README, using your section as a base:
+
+---
+
+```markdown
+### 1. **cdy** - Main Command
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directed at the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  cdy prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | cdy prompt
+  ```
+
+- **Optional flags:**
+
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render or process the complete result at once instead of streaming line by line.
+
+    While buffering, a spinner is shown to indicate work is in progress.
+
+    **Examples:**
+    ```sh
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
+    ```
+
+  (You can also check `cdy prompt --help` for the full list of available options.)
+```
+
+---
+
+Let me know if you want further clarification or examples for users!
+
+# === USER ===
+
+great, now that buffering is working, it would be cool to have syntax highlighting too. basically, there should be a "--highlight" or "--markdown" or "--color" option (what do you think?) that when selected (as an alternative to "--buffer") will both buffer the output and then apply markdown syntax highlighting to the output for the terminal. how do i do that?
+
+# === ASSISTANT ===
+
+Great idea! This is a common CLI pattern, and in fact, you can support `--highlight` and/or `--markdown` as synonyms for this feature.
+
+### My recommendation:
+- Use `--highlight` or `--markdown` (both as synonyms/aliases, to be user-friendly).
+- When either is given, buffer the output, **then** render the result as highlighted Markdown for the terminal.
+
+---
+
+# How to Implement Highlighted Markdown Output in Your CLI
+
+### 1. Choose a Markdown-to-terminal-highlighting library
+
+- 🟢 **[`marked-terminal`](https://github.com/mikaelbr/marked-terminal)`** — Drop-in renderer that works with [`marked`](https://marked.js.org/) and gives nice highlighting for Markdown (including code blocks).
+- 🟢 **[`marked`](https://www.npmjs.com/package/marked)`** — Markdown parser, used with the above.
+- _(You could use `markdown-it` and some extensions, but `marked-terminal` is simpler for CLI use.)_
+
+**Install:**
+```sh
+npm install marked marked-terminal
+```
+
+### 2. Setup your CLI flag
+
+Add flags for `--highlight` and `--markdown` (and possibly `--color` as an alias).
+
+- These flags **imply buffering**, so you don’t need to require `--buffer` as well.
+
+### 3. Buffer LLM output, then render highlighted Markdown
+
+**Here’s a working snippet:**
+
+```typescript
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
+import ora from 'ora';
+
+// ... your other code ...
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .option('--buffer', 'Buffer the entire output before displaying')
+  .option('--highlight', 'Buffer and highlight Markdown output in the terminal')
+  .option('--markdown', 'Same as --highlight')
+  .action(async (input: string | undefined, options: { buffer?: boolean; highlight?: boolean; markdown?: boolean; }) => {
+    const shouldHighlight = !!options.highlight || !!options.markdown;
+    const shouldBuffer = !!options.buffer || shouldHighlight;
+    // ...get the prompt text...
+
+    await handlePrompt({ prompt: promptText, buffer: shouldBuffer, highlight: shouldHighlight });
+  });
+
+// Handle the prompt logic, using highlight option
+async function handlePrompt({ prompt, buffer, highlight }: { prompt: string, buffer: boolean, highlight?: boolean }) {
+  // ... (create stream and withStreamTimeout as before) ...
+  if (highlight) {
+    const spinner = ora("Waiting for response...").start();
+    let output = "";
+    for await (const chunk of withStreamTimeout(stream, 15000)) {
+      if (chunk.choices[0]?.delta.content) {
+        output += chunk.choices[0].delta.content;
+      }
+    }
+    spinner.stop();
+
+    // Set up marked-terminal renderer for syntax highlighting
+    marked.setOptions({
+      renderer: new TerminalRenderer()
+    });
+    console.log(marked(output));
+  } else if (buffer) {
+    // ... Existing buffer logic ...
+  } else {
+    // ... Existing stream-as-you-go logic ...
+  }
+}
+```
+
+### 4. CLI usage
+
+```sh
+cdy prompt --highlight "Give me a markdown code sample"
+cdy prompt --markdown "Document this function in markdown"
+echo "Implement selection sort" | cdy prompt --highlight
+```
+
+- **Note:** If `--highlight` or `--markdown` is set, you don't need `--buffer` separately.
+
+---
+
+# TL;DR
+
+- Add `--highlight` and `--markdown` options (aliases).
+- Buffer the output in this mode.
+- Pass the buffered markdown to `marked-terminal` for rendering with syntax highlighting.
+- Output to terminal.
+
+---
+
+## README update example
+
+Add:
+```markdown
+- `--highlight`, `--markdown`
+  Buffer and render the LLM output as Markdown with syntax highlighting in the terminal.  
+  This option is ideal for prompts that return Markdown, code, or rich formatting.
+
+  Example:
+  ```sh
+  cdy prompt --highlight "Write Markdown documentation for a Fibonacci function"
+  ```
+```
+
+---
+
+**Let me know if you want the full code integration, or a more advanced renderer!**
+
+# === USER ===
+
+let's keep it simple and support only the "--markdown" setting. can you please rewrite your code with that in mind?
+
+# === ASSISTANT ===
+
+Absolutely! Here is a **simplified version** that adds a `--markdown` option to your `prompt` command. If you use `--markdown`, it buffers the output, displays a spinner, and then renders the result as syntax-highlighted Markdown using [`marked` + `marked-terminal`](https://github.com/mikaelbr/marked-terminal).
+
+**Make sure you have these dependencies:**
+```sh
+npm install marked marked-terminal ora
+```
+
+---
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  buffer,
+  markdown,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3",
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (markdown) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+
+      // Setup marked-terminal renderer for syntax highlighting
+      marked.setOptions({
+        renderer: new TerminalRenderer(),
+      });
+      process.stdout.write(marked(output) + "\n");
+    } else if (buffer) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      process.stdout.write(output + "\n");
+    } else {
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          process.stdout.write(chunk.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .option("--buffer", "Buffer the entire output before displaying (useful for processing the complete result)")
+  .option("--markdown", "Buffer and display the output as Markdown with syntax highlighting")
+  .action(
+    async (input: string | undefined, options: { buffer?: boolean; markdown?: boolean }) => {
+      let promptText: string | undefined = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: Boolean(options.buffer),
+        markdown: Boolean(options.markdown),
+      });
+    },
+  );
+
+program.parse();
+```
+
+---
+
+**Usage Examples:**
+
+```sh
+cdy prompt --markdown "Show a Python function that computes the Fibonacci sequence."
+echo "Explain promises in JavaScript with example code." | cdy prompt --markdown
+```
+
+---
+
+**Notes:**
+- If `--markdown` is set, buffering happens automatically; you don’t need to pass `--buffer` simultaneously.
+- If neither is set, output streams as it is generated.
+
+---
+
+Let me know if you want to update the README for this new feature too!
+
+# === USER ===
+
+i'm haveing a type error with this line. i want to try to ignore it for now. how do i do that?
+
+```typescript
+      marked.setOptions({
+        renderer: new TerminalRenderer(),
+      });
+```

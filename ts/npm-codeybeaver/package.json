@@ -24,7 +24,10 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "@types/marked-terminal": "^6.1.1",
     "commander": "^14.0.0",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
     "ora": "^8.2.0",
     "yaml": "^2.8.0",
     "zod": "^3.25.48"
