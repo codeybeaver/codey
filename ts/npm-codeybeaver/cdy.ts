@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { generateChatCompletionStream } from "./util/ai.js";
+import ora from "ora";
 
 const program = new Command();
 
@@ -16,6 +17,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function handlePrompt({ prompt }: { prompt: string }) {
+  const spinner = ora("Waiting for response...").start();
   try {
     const stream = await generateChatCompletionStream({
       messages: [
@@ -41,16 +43,20 @@ async function handlePrompt({ prompt }: { prompt: string }) {
       }
     }
 
+    // Start spinner
     // 15s timeout per chunk
     for await (const chunk of withStreamTimeout(stream, 15000)) {
       if (chunk.choices[0]?.delta.content) {
+        spinner.stop(); // So the spinner doesn't interfere with text output
         process.stdout.write(chunk.choices[0].delta.content);
+        spinner.start(); // Resume spinner after writing, if desired
       }
     }
     process.stdout.write("\n");
     process.exit(0);
   } catch (error) {
     console.error("Error generating chat completion:", error);
+    spinner.fail("Error generating chat completion");
     process.exit(1);
   }
 }
