@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/cdy.js",
+    "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint --write --unsafe",
     "format": "biome format --write",
