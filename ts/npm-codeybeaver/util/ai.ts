@@ -19,8 +19,11 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export const ModelsSchema = z
   .enum([
-    "grok-3-beta",
+    // x.ai
     "grok-3",
+    "grok-3-beta",
+
+    // openai
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -35,6 +38,34 @@ export const ModelsSchema = z
   ])
   .default("grok-3");
 
+export const ProviderSchema = z.enum(["xai", "openai"]).default("xai");
+
+const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
+  "grok-3": "xai",
+  "grok-3-beta": "xai",
+  "gpt-4.1": "openai",
+  "gpt-4.1-mini": "openai",
+  "gpt-4.1-nano": "openai",
+  "gpt-4o": "openai",
+  "gpt-4o-mini": "openai",
+  "gpt-4o-mini-search-preview": "openai",
+  "gpt-4o-search-preview": "openai",
+  o1: "openai",
+  "o1-mini": "openai",
+  o3: "openai",
+  "o3-mini": "openai",
+};
+
+function getProvider(
+  model: z.infer<typeof ModelsSchema>,
+): z.infer<typeof ProviderSchema> {
+  const provider = ModelToProviderMap[model];
+  if (!provider) {
+    throw new Error(`No provider found for model: ${model}`);
+  }
+  return provider;
+}
+
 // Update the generateChatCompletionStream function to handle multiple providers
 export async function generateChatCompletionStream({
   messages,
@@ -46,23 +77,25 @@ export async function generateChatCompletionStream({
   let aiApi: OpenAI;
   let baseURL: string | undefined;
   let apiKey: string | undefined;
-  let modelName: string;
 
-  if (model === "grok-3-beta" || model === "grok-3") {
+  // Determine the provider based on the model
+  const provider = getProvider(model);
+
+  if (provider === "xai") {
     apiKey = process.env.XAI_API_KEY;
     baseURL = "https://api.x.ai/v1";
-    modelName = "grok-3-beta";
     if (!apiKey) {
       throw new Error("XAI_API_KEY environment variable is not set.");
     }
-  } else {
+  } else if (provider === "openai") {
     apiKey = process.env.OPENAI_API_KEY;
     // baseURL = "https://api.openai.com/v1";
     baseURL = undefined; // Use default OpenAI base URL
-    modelName = "gpt-4.1";
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY environment variable is not set.");
     }
+  } else {
+    throw new Error(`Unsupported provider: ${provider}`);
   }
 
   aiApi = new OpenAI({
@@ -73,7 +106,7 @@ export async function generateChatCompletionStream({
   try {
     const stream = await withTimeout(
       aiApi.chat.completions.create({
-        model: modelName,
+        model,
         messages,
         max_tokens: undefined,
         stream: true,
