@@ -4748,3 +4748,657 @@ MIT
 
 _Developed by Identellica LLC_ 🦫
 ```
+
+# === ASSISTANT ===
+
+I'm happy to update the README to reflect the current functionality of the `codey` CLI, including the new `format` command and removing the outdated `--buffer` and `--markdown` options from the `prompt` subcommand. Below are the revised **Usage** and **Example Workflows** sections, integrated into your provided README content.
+
+```markdown
+# Codey Beaver 🦫
+
+_Codey Beaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help
+with computer programming tasks._
+
+---
+
+## Installation
+
+Install globally using npm:
+
+```sh
+npm install -g codeybeaver
+```
+
+This provides two global commands:
+
+- `codey` &nbsp;—&nbsp; Main entry point for Codey Beaver
+- `codeyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
+
+---
+
+## Usage
+
+### **codey**
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directly to the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | codey prompt
+  ```
+
+- **Optional flags:**
+
+  - `--model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI
+    account or xAI account.
+
+    **Example:**
+
+    ```sh
+    codey prompt --model gpt-4o "What is the capital of France?"
+    ```
+
+  (You can also check `codey prompt --help` for the full list of available
+  options.)
+
+#### Format Subcommand
+
+Format and highlight Markdown input for display in the terminal. This command
+wraps prose text to a maximum width of 80 characters and applies syntax
+highlighting to code blocks and other Markdown elements.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  ```
+
+- **Piping with `prompt` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format
+  ```
+
+  While receiving piped input, a spinner is shown to indicate work is in progress.
+
+  (You can also check `codey format --help` for the full list of available
+  options.)
+
+---
+
+## Help
+
+Run the following to see more options:
+
+```sh
+codey --help
+```
+
+---
+
+## Example Workflows
+
+```sh
+# Simple math prompt
+codey prompt "What is 2 plus 2?"
+
+# Code generation
+codey prompt "Generate a JavaScript function that reverses an array"
+
+# Pipe input as prompt
+cat my-instructions.txt | codey prompt
+
+# Generate and format Markdown output
+codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey format
+
+# Format direct Markdown input
+codey format "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`"
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+_Developed by Identellica LLC_ 🦫
+```
+
+### Key Updates Explained:
+- **Usage Section**:
+  - **Prompt Subcommand**: Removed `--buffer` and `--markdown` options since they are no longer part of the `prompt` command. Kept only `--model` as the relevant flag.
+  - **Format Subcommand**: Added a new subsection to describe the `format` command, detailing its purpose (formatting Markdown to a max width of 80 characters and applying syntax highlighting), input methods (command-line argument and stdin), and its common use in pipelines with `prompt`. Mentioned the spinner for piped input.
+- **Example Workflows**:
+  - Updated examples to reflect the current CLI structure, removing references to `--markdown`.
+  - Added examples for using `format` both in a pipeline with `prompt` and as a standalone command for direct Markdown input.
+
+Let me know if you want further adjustments to the README or if there are other sections you'd like to update!
+
+# === USER ===
+
+if i pipe the colored output into another command, what happens to the colors? are they pass into the next command as weird symbols, or are they removed?
+
+# === ASSISTANT ===
+
+Great question! When you pipe the colored output from your `codey format` command (or any command that uses ANSI escape codes for terminal coloring) into another command, the behavior of the colors depends on how the output is handled by the receiving command and the environment.
+
+### What Happens to Colors When Piping?
+
+1. **ANSI Escape Codes Are Preserved in the Output**:
+   - The colors in your terminal output are created using ANSI escape codes (special character sequences like `\x1B[31m` for red text). When you pipe the output of `codey format` to another command, these escape codes are **not stripped out** by default. They are passed as part of the raw text stream to the next command in the pipeline.
+   - If the receiving command or tool doesn't interpret or strip these codes, they will appear as "weird symbols" or garbled text in the output (e.g., `[31mHello[0m` instead of a colored "Hello").
+
+2. **Behavior Depends on the Receiving Command**:
+   - **Terminal or Tools that Understand ANSI Codes**: If the next command or tool in the pipeline understands ANSI escape codes (e.g., another terminal renderer, `less` with certain flags, or `bat`), it might render the colors correctly.
+   - **Tools that Don't Understand ANSI Codes**: Most tools (e.g., `grep`, `awk`, or writing to a file) will treat the escape codes as literal text, resulting in "weird symbols" in the output.
+   - **Tools that Strip ANSI Codes**: Some tools or utilities (e.g., `sed` with certain configurations, or explicitly using a library like `ansi-strip`) can strip these codes out, leaving plain text.
+
+3. **Piping to a File or Non-TTY Output**:
+   - If you pipe the output to a file (e.g., `codey format ... > output.txt`), the ANSI escape codes will be written to the file as raw characters. When you view the file later with a tool like `cat` or a text editor, you'll see the escape codes as garbled text unless the viewer supports ANSI rendering (e.g., `cat` in some terminals might render colors if your terminal supports it).
+   - If the output is piped to a non-TTY context (like in a script or CI environment), colors are still included but often ignored or displayed as raw codes unless explicitly handled.
+
+### Example Scenarios
+- **Piping to `grep`**:
+  ```sh
+  codey format "# Hello\n\`\`\`js\nconsole.log('world');\n\`\`\`" | grep "Hello"
+  ```
+  The output might include ANSI escape codes as weird symbols (e.g., `[31mHello[0m`) because `grep` doesn't interpret them by default. Some versions of `grep` have options like `--color=always` to preserve colors, but this is not standard.
+
+- **Piping to `less`**:
+  ```sh
+  codey format "# Hello\n\`\`\`js\nconsole.log('world');\n\`\`\`" | less -R
+  ```
+  Using `less -R` will preserve and render the ANSI colors correctly in many terminals.
+
+- **Piping to a File**:
+  ```sh
+  codey format "# Hello\n\`\`\`js\nconsole.log('world');\n\`\`\`" > output.txt
+  ```
+  The file `output.txt` will contain raw ANSI escape codes. Viewing it with `cat output.txt` might render colors if your terminal supports it, or show garbled text otherwise.
+
+### How to Handle Colors in Pipelines
+Since `codey format` uses `marked-terminal` to apply colors, and these are useful primarily for direct terminal viewing, you have a few options if you want to control what happens when piping:
+
+1. **Leave It As Is (Current Behavior)**:
+   - Colors (ANSI codes) are included in the output and passed to the next command. This is fine if users are piping to tools that render ANSI codes or if they expect raw output with codes included. It's the simplest approach and works well for direct terminal viewing.
+
+2. **Detect Non-TTY Output and Strip Colors**:
+   - You can modify `codey format` to detect if output is being piped (i.e., `process.stdout.isTTY` is `false`) and strip ANSI codes in that case, outputting plain text. Libraries like `strip-ansi` can help with this.
+   - **Install**: `npm install strip-ansi`
+   - **Code Change Example**:
+     ```typescript
+     import stripAnsi from 'strip-ansi';
+
+     async function handleFormat({
+       input,
+       isPiped,
+     }: {
+       input: string;
+       isPiped: boolean;
+     }) {
+       try {
+         let spinner: Ora | undefined;
+         if (isPiped) {
+           spinner = ora("Receiving and formatting input...").start();
+         }
+         const formattedInput = await prettier.format(input, {
+           parser: "markdown",
+           printWidth: 80,
+           proseWrap: "always",
+         });
+         // @ts-ignore – marked-terminal lacks full typings
+         marked.setOptions({ renderer: new TerminalRenderer() });
+         const renderedOutput = marked(formattedInput);
+         if (spinner) {
+           spinner.stop();
+         }
+         const finalOutput = process.stdout.isTTY ? renderedOutput : stripAnsi(renderedOutput);
+         process.stdout.write(`${finalOutput}\n`);
+         process.exit(0);
+       } catch (err) {
+         console.error("Error formatting input:", err);
+         process.exit(1);
+       }
+     }
+     ```
+   - This ensures clean text when piping to non-terminal outputs (like files or other commands), while preserving colors for direct terminal viewing.
+
+3. **Add a Flag to Control Color Output**:
+   - Add a flag like `--no-color` to `format` to disable color output (strip ANSI codes) when requested. This gives users control without auto-detecting.
+   - This is a common pattern in many CLIs (e.g., `ls --color=never`, `grep --color=never`).
+
+### Recommendation
+- **Short Term**: Keep the current behavior (colors are included in piped output). Most users piping `codey format` to another command will either expect colors to render (if the next tool supports it) or be okay with seeing ANSI codes as "weird symbols" in raw output. It's the simplest approach for now.
+- **Long Term**: Consider adding a `--no-color` flag to `format` (or a global flag for the CLI) to let users disable colors explicitly when piping to tools that don't handle ANSI codes. Alternatively, implement auto-detection with `process.stdout.isTTY` and `strip-ansi` as shown above if you anticipate frequent piping to non-ANSI-compatible tools.
+
+### Summary Table
+
+| Scenario                        | What Happens to Colors?                | Solution Options                     |
+|---------------------------------|---------------------------------------|--------------------------------------|
+| Piped to ANSI-compatible tool   | Colors may render correctly           | Keep as is, or use `--no-color` flag |
+| Piped to non-ANSI tool          | Colors appear as weird symbols        | Strip with `strip-ansi` or flag      |
+| Piped to file                   | Colors saved as raw ANSI codes        | Strip with `strip-ansi` or flag      |
+| Direct terminal output          | Colors render as intended             | Keep as is                           |
+
+Let me know if you'd like to implement `--no-color`, auto-detection with `strip-ansi`, or keep the current behavior! I can update the code or README accordingly.
+
+# === USER ===
+
+ok, i'd like to break up "format" and "color". format should just format with prettier, and not add color. instead, there should be another command that adds color called "color". this is the simplest way IMO. can you please change the behavior of "format", and add the other command called "color"?
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: ReturnType<typeof ora> | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(formattedInput);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      const spinner = ora("Receiving input...").start();
+      formatText = (await readStdin()).trim();
+      spinner.text = "Formatting input...";
+      spinner.stop();
+    }
+    if (!formatText) {
+      console.error(
+        "No input supplied for formatting (argument or stdin required).",
+      );
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+      isPiped,
+    });
+  });
+
+program.parse();
+```
+
+# === ASSISTANT ===
+
+I'm happy to help split the `format` command into two distinct commands: `format` (for formatting Markdown with Prettier, including line wrapping and cleanup) and `color` (for applying syntax highlighting with `marked-terminal`). This modular approach will give users more control and make the pipeline clearer when they want to separate these operations.
+
+Below is the updated code with the `format` command revised to only format using Prettier (no colorization) and a new `color` command added to handle syntax highlighting.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedInput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleColor({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and colorizing input...").start();
+    }
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error colorizing input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      formatText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Formatting input...";
+      }
+    }
+    if (!formatText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+      isPiped,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      colorText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Colorizing input...";
+      }
+    }
+    if (!colorText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for colorizing (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
+      isPiped,
+    });
+  });
+
+program.parse();
+```
+
+### Key Changes Explained:
+1. **Revised `format` Command**:
+   - Removed the syntax highlighting (colorization) logic from `handleFormat`. Now, it only formats the input using `prettier` with `printWidth: 80` and `proseWrap: "always"`, outputting the raw formatted Markdown text without ANSI color codes.
+   - Kept the spinner logic for piped input to show "Receiving input..." and "Formatting input..." during processing.
+
+2. **Added `color` Command**:
+   - Created a new command `color [input]` that takes Markdown input (from command line or stdin) and applies syntax highlighting using `marked` with `marked-terminal`.
+   - Added a `handleColor` function to process the input and render it with color in the terminal.
+   - Included spinner logic for piped input, showing "Receiving input..." and "Colorizing input..." to provide feedback during processing.
+
+### Usage Examples:
+- **Prompting the LLM (streaming output):**
+  ```sh
+  codey prompt "What is 1 + 1?"
+  ```
+
+- **Formatting Markdown (line wrapping, no color):**
+  ```sh
+  codey format "# Hello\nThis is a very long line that should be wrapped at 80 characters to ensure readability."
+  ```
+
+- **Colorizing Markdown (syntax highlighting):**
+  ```sh
+  codey color "# Hello\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Pipeline Combining All Steps**:
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format | codey color
+  ```
+  This pipeline will generate the content, format it with Prettier (wrapping to 80 characters), and then apply syntax highlighting for terminal display.
+
+### Notes:
+- **Modularity**: This split allows users to choose exactly what they need—formatting only, colorizing only, or both via a pipeline. It also makes each command's purpose clearer and easier to extend with specific options in the future (e.g., `--width` for `format`, `--theme` for `color`).
+- **Spinner Behavior**: Both `format` and `color` show spinners when receiving piped input, ensuring visual feedback during processing in pipelines.
+
+Let me know if you want to update the README to reflect these changes or if you have any other modifications in mind!
+
+# === USER ===
+
+

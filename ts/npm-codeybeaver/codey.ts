@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import ora from "ora";
+import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { generateChatCompletionStream } from "./util/ai.js";
@@ -69,7 +69,7 @@ async function handleFormat({
   isPiped: boolean;
 }) {
   try {
-    let spinner: ReturnType<typeof ora> | undefined;
+    let spinner: Ora | undefined;
     if (isPiped) {
       spinner = ora("Receiving and formatting input...").start();
     }
@@ -79,18 +79,40 @@ async function handleFormat({
       printWidth: 80,
       proseWrap: "always",
     });
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedInput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
 
+async function handleColor({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and colorizing input...").start();
+    }
     // Setup marked-terminal renderer for syntax highlighting
     // @ts-ignore – marked-terminal lacks full typings
     marked.setOptions({ renderer: new TerminalRenderer() });
-    const renderedOutput = marked(formattedInput);
+    const renderedOutput = marked(input);
     if (spinner) {
       spinner.stop();
     }
     process.stdout.write(`${renderedOutput}\n`);
     process.exit(0);
   } catch (err) {
-    console.error("Error formatting input:", err);
+    console.error("Error colorizing input:", err);
     process.exit(1);
   }
 }
@@ -123,17 +145,24 @@ program
 
 program
   .command("format [input]")
-  .description("Format and highlight Markdown input (argument or stdin)")
+  .description(
+    "Format Markdown input with proper line wrapping (argument or stdin)",
+  )
   .action(async (input: string | undefined) => {
     let formatText = input;
     const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
     if (isPiped) {
-      const spinner = ora("Receiving input...").start();
+      spinner = ora("Receiving input...").start();
       formatText = (await readStdin()).trim();
-      spinner.text = "Formatting input...";
-      spinner.stop();
+      if (spinner) {
+        spinner.text = "Formatting input...";
+      }
     }
     if (!formatText) {
+      if (spinner) {
+        spinner.stop();
+      }
       console.error(
         "No input supplied for formatting (argument or stdin required).",
       );
@@ -141,6 +170,37 @@ program
     }
     await handleFormat({
       input: formatText,
+      isPiped,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description(
+    "Apply syntax highlighting to Markdown input (argument or stdin)",
+  )
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      colorText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Colorizing input...";
+      }
+    }
+    if (!colorText) {
+      if (spinner) {
+        spinner.stop();
+      }
+      console.error(
+        "No input supplied for colorizing (argument or stdin required).",
+      );
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
       isPiped,
     });
   });
