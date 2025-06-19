@@ -24,18 +24,20 @@ This provides two global commands:
 
 ### **cdy** - Main Command
 
+#### Prompt Subcommand
+
 Send a prompt (question, request, etc.) directly to the LLM.
 
 - **Via command-line argument:**
 
   ```sh
-  cdy "What is 1 + 1?"
+  cdy prompt "What is 1 + 1?"
   ```
 
 - **Via standard input (pipe support):**
 
   ```sh
-  echo "Write a Python hello world script" | cdy
+  echo "Write a Python hello world script" | cdy prompt
   ```
 
 - **Optional flags:**
@@ -50,8 +52,8 @@ Send a prompt (question, request, etc.) directly to the LLM.
     **Examples:**
 
     ```sh
-    cdy --buffer "Give me a markdown-formatted README for a math library"
-    echo "Write Python code for a binary search" | cdy --buffer
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
     ```
 
   - `--markdown`  
@@ -65,33 +67,23 @@ Send a prompt (question, request, etc.) directly to the LLM.
     **Examples:**
 
     ```sh
-    cdy --markdown "Write a Markdown example with a highlighted Python code block."
-    echo "Explain closures in JavaScript with examples." | cdy --markdown
+    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
     ```
 
-  - `model <model>`  
+  - `--model <model>`  
     Specify the LLM model to use. The default is `grok-3`.  
-    You can also use `gpt-4o` or any other major model available in your OpenAI account or xAI account.
+    You can also use `gpt-4o` or any other major model available in your OpenAI
+    account or xAI account.
 
     **Example:**
 
     ```sh
-    cdy --model gpt-4o "What is the capital of France?"
+    cdy prompt --model gpt-4o "What is the capital of France?"
     ```
 
-  (You can also check `cdy --help` for the full list of available options.)
-
----
-
-## **cdyp** - Convenience Shortcut
-
-`cdyp` is a shortcut for `cdy`. With `cdyp`, everything after the command is
-treated as your prompt (no need for quotes):
-
-```sh
-cdyp What is 2 plus 2?
-cdyp Generate a bash script that prints the current date
-```
+  (You can also check `cdy prompt --help` for the full list of available
+  options.)
 
 ---
 
@@ -109,13 +101,13 @@ cdy --help
 
 ```sh
 # Simple math prompt
-cdy "What is 2 plus 2?"
+cdy prompt "What is 2 plus 2?"
 
 # Code generation
-cdy "Generate a JavaScript function that reverses an array"
+cdy prompt "Generate a JavaScript function that reverses an array"
 
 # Pipe input as prompt
-cat my-instructions.txt | cdy
+cat my-instructions.txt | cdy prompt
 
 # Markdown rendering
 cdy --markdown "Show me a Python bubble sort function with comments."

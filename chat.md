@@ -1,3 +1,7 @@
++++
+model = "grok-3"
++++
+
 i need your help to build a new i'm calling "codey beaver" it's a command line
 tool and typescript node.js library for calling and using LLMs to facilitate
 computer programming.
@@ -3152,4 +3156,250 @@ Let me know if you want further tweaks for style, usage examples, or library API
 
 # === USER ===
 
+i've changed my mind about the behavior if this program again. i want the freedom to add more commands in the future, so let's restore the "prompt" command. can you please add it back?
+
+```typescript
+program
+  .name("cdy")
+  .description("Send a prompt to the LLM (via argument or stdin)")
+  .argument("[input]", "Prompt text (if omitted, read from stdin)")
+  .option(
+    "--buffer",
+    "Buffer the entire output before displaying (useful for processing the complete result)"
+  )
+  .option(
+    "--markdown",
+    "Buffer and display the output as Markdown with syntax highlighting"
+  )
+  .option(
+    "--model <model>",
+    "Model to use (default: 'grok-3')",
+  )
+  .action(
+    async (
+      input: string | undefined,
+      options: { buffer?: boolean; markdown?: boolean; model?: string },
+    ) => {
+      let promptText: string | undefined = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: Boolean(options.buffer),
+        markdown: Boolean(options.markdown),
+        model: options.model || "grok-3",
+      });
+    }
+  );
+```
+
+
+# === ASSISTANT ===
+
+Below is a **drop-in replacement** that brings the `prompt` sub-command back while preserving the `--buffer`, `--markdown`, and new `--model` options.  
+(Only the parts that change are highlighted, but a full listing is provided for convenience.)
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  buffer,
+  markdown,
+  model,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (markdown) {
+      const spinner = ora("Waiting for response…").start();
+      let out = "";
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) out += c.choices[0].delta.content;
+      }
+      spinner.stop();
+      // @ts-ignore – marked-terminal lacks full typings
+      marked.setOptions({ renderer: new TerminalRenderer() });
+      process.stdout.write(marked(out) + "\n");
+    } else if (buffer) {
+      const spinner = ora("Waiting for response…").start();
+      let out = "";
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) out += c.choices[0].delta.content;
+      }
+      spinner.stop();
+      process.stdout.write(out + "\n");
+    } else {
+      for await (const c of withTimeout(stream, 15_000)) {
+        if (c.choices[0]?.delta.content) process.stdout.write(c.choices[0].delta.content);
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("cdy")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+/* prompt sub-command (restored) */
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--buffer", "Buffer full output before printing")
+  .option("--markdown", "Buffer + render as Markdown with syntax highlighting")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(
+    async (
+      input: string | undefined,
+      opts: { buffer?: boolean; markdown?: boolean; model: string },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: !!opts.buffer,
+        markdown: !!opts.markdown,
+        model: opts.model || "grok-3",
+      });
+    },
+  );
+
+program.parse();
+```
+
+### What changed?
+1. Added `program.command("prompt [input]")` – so future commands can be added beside it.
+2. Included the `--model <model>` option with default `"grok-3"`.
+3. Wired `model` through `handlePrompt`.
+4. Top-level `program` now only sets name/description/version; all options live on the `prompt` sub-command.
+
+You can now expand the CLI with additional sub-commands later (e.g., `cdy summarize`, `cdy refactor`, etc.) without altering existing behavior.
+
+# === USER ===
+
+great, now can you fix the readme?
+
+```markdown
+## Usage
+
+### **cdy** - Main Command
+
+Send a prompt (question, request, etc.) directly to the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  cdy "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | cdy
+  ```
+
+- **Optional flags:**
+
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render
+    or process the complete result at once instead of streaming line by line.
+
+    While buffering, a spinner is shown to indicate work is in progress.
+
+    **Examples:**
+
+    ```sh
+    cdy --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy --buffer
+    ```
+
+  - `--markdown`  
+    Buffer the LLM's entire output and display it with Markdown and syntax
+    highlighting in your terminal. This is ideal for outputs containing code,
+    tables, or other formatted Markdown.
+
+    While buffering, a spinner is shown to indicate work is in progress.  
+    You do **not** need to specify `--buffer` along with `--markdown`.
+
+    **Examples:**
+
+    ```sh
+    cdy --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy --markdown
+    ```
+
+  - `model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI account or xAI account.
+
+    **Example:**
+
+    ```sh
+    cdy --model gpt-4o "What is the capital of France?"
+    ```
+
+  (You can also check `cdy --help` for the full list of available options.)
+```
 
