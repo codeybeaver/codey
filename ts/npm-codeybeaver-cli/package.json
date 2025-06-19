@@ -1,17 +1,22 @@
 {
   "name": "@codeybeaver/cli",
   "version": "0.0.1",
-  "description": "LLMS on the command line.",
-  "main": "index.js",
+  "description": "LLMs on the command line.",
+  "main": "cdy.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint --write --unsafe",
+    "format": "biome format --write",
+    "fix": "pnpm run typecheck && pnpm run lint && pnpm run format"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Ryan X. Charles <ryan@ryanxcharles.com> (https://ryanxcharles.com)",
+  "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.15.29",
-    "openai": "^4.96.2"
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^24.0.3",
+    "openai": "^5.5.1"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
