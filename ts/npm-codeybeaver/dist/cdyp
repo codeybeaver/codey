@@ -1,0 +1,3 @@
+#!/bin/sh
+prompt="$*"
+node "$(dirname "$0")/cdy" prompt "$prompt"

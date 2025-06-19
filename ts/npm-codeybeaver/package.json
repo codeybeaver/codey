@@ -5,11 +5,11 @@
   "main": "cdy.js",
   "type": "module",
   "bin": {
-    "cdy": "./cdy.js",
-    "cdyp": "./cdyp"
+    "cdy": "./dist/cdy.js",
+    "cdyp": "./dist/cdyp"
   },
   "scripts": {
-    "build": "tsc && chmod +x cdy.js",
+    "build": "tsc && chmod +x dist/cdy.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint --write --unsafe",
     "format": "biome format --write",

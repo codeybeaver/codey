@@ -1,3 +1,0 @@
-#!/bin/sh
-prompt="$*"
-node cdy.js prompt "$prompt"
