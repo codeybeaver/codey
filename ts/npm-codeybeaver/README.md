@@ -69,6 +69,16 @@ Send a prompt (question, request, etc.) directly to the LLM.
     echo "Explain closures in JavaScript with examples." | cdy --markdown
     ```
 
+  - `model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI account or xAI account.
+
+    **Example:**
+
+    ```sh
+    cdy --model gpt-4o "What is the capital of France?"
+    ```
+
   (You can also check `cdy --help` for the full list of available options.)
 
 ---
