@@ -4223,3 +4223,308 @@ Let me know if you encounter any further TypeScript issues or if you want to ref
 # === USER ===
 
 great, now i have one final request for the "format" command. not only do i want syntax highlighting, i actually want to set to a max width of 80 (eventually, this will be configurable, but for now i want 80, which is standard). i think we can use some library like prettier to format markdown in this manner - can we do that? we should fix the max width and get rid of extra newlines, whatever prettier does, or if prettier doesn't work, then we need another library.
+
+# === ASSISTANT ===
+
+I'm glad to help with this final request for the `format` command. You want to format the Markdown output with syntax highlighting and ensure it adheres to a maximum line width of 80 characters, while also cleaning up extra newlines. We can achieve this by using a library like `prettier` to handle the Markdown formatting with a specified `printWidth` of 80.
+
+### Using Prettier for Markdown Formatting
+
+`prettier` is a popular code formatter that supports Markdown and allows you to set a maximum line width (`printWidth`). It will wrap long lines and clean up unnecessary newlines, making the output consistent and readable. We'll combine `prettier` with `marked` and `marked-terminal` to maintain syntax highlighting in the terminal while ensuring the Markdown source is formatted to a width of 80 characters. However, since `marked-terminal` renders the formatted Markdown directly to the terminal (and doesn't preserve the raw formatted text for further width adjustments post-rendering), the line width control happens in the Markdown source before rendering.
+
+Here’s how we can implement this:
+
+1. **Format the input Markdown with `prettier`** to enforce a `printWidth` of 80 and clean up extra newlines.
+2. **Render the formatted Markdown with `marked` and `marked-terminal`** for syntax highlighting in the terminal.
+
+### Install Prettier
+
+First, ensure you have `prettier` installed:
+
+```sh
+npm install prettier
+```
+
+### Updated Code with Prettier Integration
+
+Below is the updated code for your CLI, focusing on the `format` command to include formatting with `prettier` before rendering with `marked-terminal`:
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import prettier from "prettier";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+    });
+
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(formattedInput);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format and highlight Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      formatText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Formatting input...";
+      }
+    }
+    if (!formatText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+      isPiped,
+    });
+  });
+
+program.parse();
+```
+
+### Key Changes Explained:
+- **Added `prettier` for Markdown Formatting**:
+  - Installed and imported `prettier`.
+  - In `handleFormat`, used `prettier.format` with `parser: "markdown"` and `printWidth: 80` to format the input Markdown to a maximum line width of 80 characters. This also cleans up extra newlines and ensures consistent formatting.
+- **Maintained Syntax Highlighting**:
+  - After formatting with `prettier`, the formatted Markdown is passed to `marked` with `marked-terminal` for terminal rendering with syntax highlighting.
+- **Spinner Behavior**:
+  - Kept the spinner logic for piped input to show "Receiving input..." while waiting for streamed content and "Formatting input..." during processing.
+
+### Notes on Limitations:
+- **Terminal Rendering and Width**: `marked-terminal` renders the Markdown to the terminal with ANSI escape codes for highlighting, and it does not strictly enforce line width in the rendered output (it depends on the terminal's width and how ANSI codes are interpreted). The `printWidth: 80` in `prettier` applies to the Markdown source text before rendering, ensuring that the underlying Markdown content is formatted to 80 characters. The terminal output's visual width might vary slightly due to syntax highlighting characters, but the content structure will respect the 80-character limit.
+- **Future Configurability**: You mentioned wanting to make the width configurable eventually. When you're ready, you can add an option like `--width <number>` to the `format` command and pass it to `prettier.format` as `printWidth`.
+
+### Alternative Libraries:
+If `prettier` doesn't meet your needs (e.g., if you want stricter control over rendered output width in the terminal), you could consider libraries like `text-wrap` or `word-wrap` for manual line wrapping after rendering. However, these are less ideal for Markdown since they don't understand Markdown syntax and could break formatting. `prettier` is the best choice for Markdown formatting with width constraints and cleanup of extra newlines.
+
+### Usage Example:
+- **Formatting with Width Limit and Highlighting:**
+  ```sh
+  codey format "# Hello\nThis is a very long line that should be wrapped at 80 characters to ensure readability in the terminal output after formatting with prettier."
+  ```
+  The output will be formatted Markdown with lines wrapped at 80 characters in the source, then rendered with syntax highlighting.
+
+- **Piped Input from `prompt`:**
+  ```sh
+  codey prompt "Write a long Markdown document about Python functions." | codey format
+  ```
+  You'll see the spinner while receiving input, and the output will be formatted to a max width of 80 characters in the Markdown source before being rendered with highlighting.
+
+Let me know if you want to adjust the width, make it configurable now, or update the README to reflect this change!
+
+# === USER ===
+
+that didn't quite work. however, i know prettier can do this. here is some lua code from my nvim config:
+
+```lua
+      function()
+        return {
+          exe = "prettier", -- Make sure Prettier is installed globally
+          args = {
+            "--stdin-filepath",
+            vim.api.nvim_buf_get_name(0), -- Prettier needs the file path to infer formatting rules
+            "--prose-wrap",
+            "always", -- Ensures text in markdown files is always wrapped
+          },
+          stdin = true,
+        }
+      end,
+```
+
+notice how i call prettier with "prose wrap" and "always". what is the equivalent of these options when calling pretter in typescript?
+
+# === ASSISTANT ===
+
+I'm glad you brought this up! The issue you're experiencing likely stems from the fact that `prettier` by default may not wrap prose (paragraphs of text in Markdown) aggressively enough, even with a `printWidth` of 80. In your Neovim Lua config, you're using the `--prose-wrap always` option with the `prettier` CLI, which forces text in Markdown files to be wrapped at the specified width.
+
+In the TypeScript API for `prettier`, the equivalent option to `--prose-wrap always` is `proseWrap: "always"`. This option ensures that prose (text outside of code blocks) in Markdown is wrapped to the specified `printWidth`. Let's update the code to include this option when formatting with `prettier`.
+
+### Updated Code with `proseWrap: "always"`
+
+Below is the relevant part of the code updated to include `proseWrap: "always"` in the `prettier.format` call:
+
+```typescript
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always", // Forces prose text to wrap at printWidth
+    });
+
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(formattedInput);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+```
+
+### Key Change Explained:
+- **Added `proseWrap: "always"`**:
+  - This option in the `prettier.format` configuration ensures that prose (non-code text in Markdown) is always wrapped to the `printWidth` (set to 80 in this case). This mirrors the behavior of `--prose-wrap always` in the CLI version of Prettier, which you use in your Neovim config.
+  - Without this, Prettier might preserve long lines in prose if it deems them intentional, but with `proseWrap: "always"`, it forces wrapping to adhere to the width limit.
+
+### Additional Notes:
+- **Code Blocks**: Prettier will not wrap code inside fenced code blocks (e.g., ```` ```js ````), which is the desired behavior since code formatting often has its own rules. If you want code to be wrapped or formatted differently, you can add additional Prettier options like `tabWidth` or specify a different `parser` for embedded code, though this is usually unnecessary for terminal output.
+- **Extra Newlines**: Prettier automatically cleans up extra newlines in Markdown as part of its formatting process, so this should address your requirement to remove unnecessary spacing.
+
+### Usage Example:
+- **Formatting Markdown with Prose Wrapping:**
+  ```sh
+  codey format "# Hello\nThis is a very long line of text in a Markdown document that should be wrapped at 80 characters because we have set proseWrap to always in Prettier, ensuring readability in the terminal after formatting."
+  ```
+  The output will have the prose text wrapped at 80 characters in the Markdown source before being rendered with syntax highlighting in the terminal.
+
+- **Piped Input from `prompt`:**
+  ```sh
+  codey prompt "Write a long Markdown document about Python functions with lots of text that exceeds 80 characters per line in multiple paragraphs." | codey format
+  ```
+  The spinner will show while receiving input, and the formatted output will have prose wrapped at 80 characters.
+
+### Full Code Context (if needed):
+If you want the full updated code, it remains the same as in my previous response, with only the `proseWrap: "always"` addition in the `handleFormat` function as shown above.
+
+Let me know if this resolves the wrapping issue, if you want to make the `printWidth` configurable now, or if you need an updated README or further adjustments!
+
+# === USER ===
+
+

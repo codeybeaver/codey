@@ -77,6 +77,7 @@ async function handleFormat({
     const formattedInput = await prettier.format(input, {
       parser: "markdown",
       printWidth: 80,
+      proseWrap: "always",
     });
 
     // Setup marked-terminal renderer for syntax highlighting
