@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import ora from "ora";
 import { generateChatCompletionStream } from "./util/ai.js";
+// import { marked } from "marked"; // <-- for future markdown rendering
 
 const program = new Command();
 
@@ -15,7 +17,10 @@ async function readStdin(): Promise<string> {
   });
 }
 
-async function handlePrompt({ prompt }: { prompt: string }) {
+async function handlePrompt({
+  prompt,
+  buffer,
+}: { prompt: string; buffer: boolean }) {
   try {
     const stream = await generateChatCompletionStream({
       messages: [
@@ -24,7 +29,7 @@ async function handlePrompt({ prompt }: { prompt: string }) {
           content: prompt,
         },
       ],
-      model: "grok-3", // Pass the selected model from settings (parameterize if needed)
+      model: "grok-3",
     });
 
     async function* withStreamTimeout<T>(
@@ -41,13 +46,24 @@ async function handlePrompt({ prompt }: { prompt: string }) {
       }
     }
 
-    // 15s timeout per chunk
-    for await (const chunk of withStreamTimeout(stream, 15000)) {
-      if (chunk.choices[0]?.delta.content) {
-        process.stdout.write(chunk.choices[0].delta.content);
+    if (buffer) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
       }
+      spinner.stop();
+      process.stdout.write(`${output}\n`);
+    } else {
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          process.stdout.write(chunk.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
     }
-    process.stdout.write("\n");
     process.exit(0);
   } catch (error) {
     console.error("Error generating chat completion:", error);
@@ -58,24 +74,21 @@ async function handlePrompt({ prompt }: { prompt: string }) {
 program
   .command("prompt [input]")
   .description("Send a prompt to the LLM (from arg or stdin)")
-  .action(async (input: string | undefined) => {
-    if (input) {
-      // Argument prompt
-      await handlePrompt({ prompt: input });
-    } else if (!process.stdin.isTTY) {
+  .option(
+    "--buffer",
+    "Buffer the entire output before displaying (useful for markdown rendering)",
+  )
+  .action(async (input: string | undefined, options: { buffer?: boolean }) => {
+    let promptText: string | undefined = input;
+    if (!promptText && !process.stdin.isTTY) {
       // stdin is not a terminal => input is being piped in
-      const stdinInput = (await readStdin()).trim();
-      if (stdinInput.length > 0) {
-        await handlePrompt({ prompt: stdinInput });
-      } else {
-        console.error("No input provided via stdin or as argument.");
-        process.exit(1);
-      }
-    } else {
-      // No input at all
-      console.error("No prompt input given. Use an argument or pipe input.");
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No input provided via stdin or as argument.");
       process.exit(1);
     }
+    await handlePrompt({ prompt: promptText, buffer: !!options.buffer });
   });
 
 program.parse();
