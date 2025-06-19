@@ -4,6 +4,9 @@
   "description": "LLMs on the command line.",
   "main": "cdy.js",
   "type": "module",
+  "bin": {
+    "cdy": "./cdy.js"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
