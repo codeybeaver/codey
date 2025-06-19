@@ -2554,3 +2554,348 @@ can you add the documentation for "--markdown" to the readme?
   options.)
 
 ```
+
+# === ASSISTANT ===
+
+Certainly! Here's the expanded README block with `--markdown` documented, matching your style:
+
+```markdown
+- **Optional flags:**
+
+  - `--buffer`  
+    Buffer the LLM’s entire output before displaying it in the terminal.  
+    This is useful for output that is formatted as Markdown, so you can render
+    or process the complete result at once instead of streaming line by line.
+
+    While buffering, a spinner is shown to indicate work is in progress.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --buffer "Give me a markdown-formatted README for a math library"
+    echo "Write Python code for a binary search" | cdy prompt --buffer
+    ```
+
+  - `--markdown`  
+    Buffer the LLM's entire output and display it with Markdown and syntax highlighting in your terminal.
+    This is ideal for outputs containing code, tables, or other formatted Markdown.
+    
+    While buffering, a spinner is shown to indicate work is in progress.  
+    You do **not** need to specify `--buffer` along with `--markdown`.
+
+    **Examples:**
+
+    ```sh
+    cdy prompt --markdown "Write a Markdown example with a highlighted Python code block."
+    echo "Explain closures in JavaScript with examples." | cdy prompt --markdown
+    ```
+
+  (You can also check `cdy prompt --help` for the full list of available
+  options.)
+```
+
+Let me know if you want further adjustments!
+
+# === USER ===
+
+i've changed  my mind about how this program should work. the only command is "prompt". therefore, there is no reason to pass the command "prompt". every command is prompt. can you please change the behavior to get rid of the 'prompt' command and just assume prompting it the action we want? we should still have the --buffer and --markdown options.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  buffer,
+  markdown,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3",
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (markdown) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+
+      // Setup marked-terminal renderer for syntax highlighting
+      marked.setOptions({
+        // @ts-ignore:
+        renderer: new TerminalRenderer(),
+      });
+      process.stdout.write(`${marked(output)}\n`);
+    } else if (buffer) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      process.stdout.write(`${output}\n`);
+    } else {
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          process.stdout.write(chunk.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .option(
+    "--buffer",
+    "Buffer the entire output before displaying (useful for processing the complete result)",
+  )
+  .option(
+    "--markdown",
+    "Buffer and display the output as Markdown with syntax highlighting",
+  )
+  .action(
+    async (
+      input: string | undefined,
+      options: { buffer?: boolean; markdown?: boolean },
+    ) => {
+      let promptText: string | undefined = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: Boolean(options.buffer),
+        markdown: Boolean(options.markdown),
+      });
+    },
+  );
+
+program.parse();
+```
+
+# === ASSISTANT ===
+
+Absolutely! If "prompt" is now the **default action** and the *only* command, you should drop the `.command("prompt [input]")` and instead use `program.argument()` and `program.option()` directly on the root `program`.
+
+Below is your **refactored code** with:
+- No subcommand (just `cdy [input] [--options]`)
+- "Prompt" as the default (and only) action
+- All options (`--buffer`, `--markdown`) still supported
+
+---
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  buffer,
+  markdown,
+}: {
+  prompt: string;
+  buffer: boolean;
+  markdown: boolean;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3",
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (markdown) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+
+      // Setup marked-terminal renderer for syntax highlighting
+      // @ts-ignore
+      marked.setOptions({
+        renderer: new TerminalRenderer(),
+      });
+      process.stdout.write(`${marked(output)}\n`);
+    } else if (buffer) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      process.stdout.write(`${output}\n`);
+    } else {
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          process.stdout.write(chunk.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+program
+  .name("cdy")
+  .description("Send a prompt to the LLM (via argument or stdin)")
+  .argument("[input]", "Prompt text (if omitted, read from stdin)")
+  .option(
+    "--buffer",
+    "Buffer the entire output before displaying (useful for processing the complete result)"
+  )
+  .option(
+    "--markdown",
+    "Buffer and display the output as Markdown with syntax highlighting"
+  )
+  .action(
+    async (
+      input: string | undefined,
+      options: { buffer?: boolean; markdown?: boolean }
+    ) => {
+      let promptText: string | undefined = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        buffer: Boolean(options.buffer),
+        markdown: Boolean(options.markdown),
+      });
+    }
+  );
+
+program.parse();
+```
+
+---
+
+### **How to use:**
+
+```sh
+# Pass prompt as argument
+cdy "What is 1 + 1?"
+
+# Pipe prompt via stdin
+echo "Write a Python hello world script" | cdy
+
+# Buffer output
+cdy --buffer "Give me a markdown-formatted README"
+
+# Markdown-highlighted output
+cdy --markdown "Show a Python quicksort example as markdown"
+```
+
+---
+
+Let me know if you want a matching README section for this revised UX!
+
+# === USER ===
+
+

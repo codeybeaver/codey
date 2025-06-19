@@ -63,8 +63,9 @@ async function handlePrompt({
       spinner.stop();
 
       // Setup marked-terminal renderer for syntax highlighting
+      // @ts-ignore
       marked.setOptions({
-        // @ts-ignore:
+        // @ts-ignore
         renderer: new TerminalRenderer(),
       });
       process.stdout.write(`${marked(output)}\n`);
@@ -94,20 +95,21 @@ async function handlePrompt({
 }
 
 program
-  .command("prompt [input]")
-  .description("Send a prompt to the LLM (from arg or stdin)")
+  .name("cdy")
+  .description("Send a prompt to the LLM (via argument or stdin)")
+  .argument("[input]", "Prompt text (if omitted, read from stdin)")
   .option(
     "--buffer",
-    "Buffer the entire output before displaying (useful for processing the complete result)",
+    "Buffer the entire output before displaying (useful for processing the complete result)"
   )
   .option(
     "--markdown",
-    "Buffer and display the output as Markdown with syntax highlighting",
+    "Buffer and display the output as Markdown with syntax highlighting"
   )
   .action(
     async (
       input: string | undefined,
-      options: { buffer?: boolean; markdown?: boolean },
+      options: { buffer?: boolean; markdown?: boolean }
     ) => {
       let promptText: string | undefined = input;
       if (!promptText && !process.stdin.isTTY) {
@@ -122,7 +124,7 @@ program
         buffer: Boolean(options.buffer),
         markdown: Boolean(options.markdown),
       });
-    },
+    }
   );
 
 program.parse();
