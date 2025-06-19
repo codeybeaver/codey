@@ -13,10 +13,9 @@ Install globally using npm:
 npm install -g codeybeaver
 ```
 
-This provides two global commands:
+This provides one global command:
 
 - `codey` &nbsp;—&nbsp; Main entry point for Codey Beaver
-- `codeyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
 
 ---
 
@@ -42,35 +41,6 @@ Send a prompt (question, request, etc.) directly to the LLM.
 
 - **Optional flags:**
 
-  - `--buffer`  
-    Buffer the LLM’s entire output before displaying it in the terminal.  
-    This is useful for output that is formatted as Markdown, so you can render
-    or process the complete result at once instead of streaming line by line.
-
-    While buffering, a spinner is shown to indicate work is in progress.
-
-    **Examples:**
-
-    ```sh
-    codey prompt --buffer "Give me a markdown-formatted README for a math library"
-    echo "Write Python code for a binary search" | codey prompt --buffer
-    ```
-
-  - `--markdown`  
-    Buffer the LLM's entire output and display it with Markdown and syntax
-    highlighting in your terminal. This is ideal for outputs containing code,
-    tables, or other formatted Markdown.
-
-    While buffering, a spinner is shown to indicate work is in progress.  
-    You do **not** need to specify `--buffer` along with `--markdown`.
-
-    **Examples:**
-
-    ```sh
-    codey prompt --markdown "Write a Markdown example with a highlighted Python code block."
-    echo "Explain closures in JavaScript with examples." | codey prompt --markdown
-    ```
-
   - `--model <model>`  
     Specify the LLM model to use. The default is `grok-3`.  
     You can also use `gpt-4o` or any other major model available in your OpenAI
@@ -83,6 +53,36 @@ Send a prompt (question, request, etc.) directly to the LLM.
     ```
 
   (You can also check `codey prompt --help` for the full list of available
+  options.)
+
+#### Format Subcommand
+
+Format and highlight Markdown input for display in the terminal. This command
+wraps prose text to a maximum width of 80 characters and applies syntax
+highlighting to code blocks and other Markdown elements.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  ```
+
+- **Piping with `prompt` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format
+  ```
+
+  While receiving piped input, a spinner is shown to indicate work is in
+  progress.
+
+  (You can also check `codey format --help` for the full list of available
   options.)
 
 ---
@@ -109,8 +109,11 @@ codey prompt "Generate a JavaScript function that reverses an array"
 # Pipe input as prompt
 cat my-instructions.txt | codey prompt
 
-# Markdown rendering
-codey --markdown "Show me a Python bubble sort function with comments."
+# Generate and format Markdown output
+codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey format
+
+# Format direct Markdown input
+codey format "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`"
 ```
 
 ---
