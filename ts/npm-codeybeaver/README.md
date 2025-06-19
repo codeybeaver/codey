@@ -1,6 +1,6 @@
-# CodeyBeaver 🦫
+# Codey Beaver 🦫
 
-_CodeyBeaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help
+_Codey Beaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help
 with computer programming tasks._
 
 ---
@@ -15,7 +15,7 @@ npm install -g codeybeaver
 
 This provides two global commands:
 
-- `cdy` &nbsp;—&nbsp; Main entry point for CodeyBeaver
+- `cdy` &nbsp;—&nbsp; Main entry point for Codey Beaver
 - `cdyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
 
 ---

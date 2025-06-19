@@ -905,3 +905,1230 @@ Let me know if you want to do this with a Node wrapper instead!
 i've renamed the package to "codeybeaver".
 
 can you please produce a README.md file that gives installation instructions for this package using npm, and usage instructions for the commands "cdy" and "cdyp"?
+
+# === ASSISTANT ===
+
+Absolutely! Here’s a `README.md` to get you started:
+
+---
+
+```markdown
+# CodeyBeaver 🦫
+
+_CodeyBeaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help with computer programming tasks._
+
+---
+
+## Installation
+
+Install globally using npm:
+
+```sh
+npm install -g codeybeaver
+```
+
+This provides two global commands:  
+- `cdy` &nbsp;—&nbsp; Main entry point for CodeyBeaver
+- `cdyp` &nbsp;—&nbsp; Convenience command for quickly sending prompts
+
+---
+
+## Usage
+
+### 1. **cdy** - Main Command
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directed at the LLM.
+
+- **Via command-line argument:**
+  ```sh
+  cdy prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+  ```sh
+  echo "Write a Python hello world script" | cdy prompt
+  ```
+
+- **Optional flags:**  
+  (Check `cdy prompt --help` for available options specific to your installation.)
+
+---
+
+### 2. **cdyp** - Convenience Shortcut
+
+`cdyp` is a shortcut for `cdy prompt`.  
+With `cdyp`, everything after the command is treated as your prompt (no need for quotes):
+
+```sh
+cdyp What is 1 + 1?
+cdyp Write a Python hello world script
+```
+
+This is equivalent to:
+
+```sh
+cdy prompt "What is 1 + 1?"
+```
+
+---
+
+## Help
+
+Run the following to see more options:
+
+```sh
+cdy --help
+cdy prompt --help
+```
+
+---
+
+## Example Workflows
+
+```sh
+# Simple math prompt
+cdyp What is 2 plus 2?
+
+# Code generation
+cdy prompt "Generate a JavaScript function that reverses an array"
+
+# Pipe input as prompt
+cat my-instructions.txt | cdy prompt
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+_Developed by [Your Name or Organization]_ 🦫
+```
+---
+
+Let me know if you’d like to add usage for the Node.js library, contribution instructions, or LLM integration examples!
+
+# === USER ===
+
+can i specify an output directory in my tsconfig file?
+
+```
+{
+  "include": ["*.ts", "**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "rootDirs": ["."]
+  }
+}
+```
+
+# === ASSISTANT ===
+
+Yes, you **can and should** specify an output directory in your `tsconfig.json` using the [`outDir`](https://www.typescriptlang.org/tsconfig#outDir) option. This tells TypeScript where to put the compiled JavaScript files.
+
+**Example:**  
+To output to a `dist` directory (the usual convention):
+
+```json
+{
+  "include": ["*.ts", "**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "rootDirs": ["."],
+    "outDir": "dist"
+  }
+}
+```
+
+After adding `outDir: "dist"`, running `tsc` will put your outputs in the `dist` directory.
+
+---
+
+**Optional:**  
+You may also want to set the `"rootDir"` to `src` (if your source lives in `src/`) for a clean structure:
+
+```json
+"rootDir": "src",
+"outDir": "dist"
+```
+
+---
+
+**Summary:**  
+- Add `"outDir": "dist"` to `compilerOptions` in your `tsconfig.json`.
+- Your compiled files will go in the specified directory.
+
+Let me know if you want recommendations for organizing your `src`, `dist`, and bin setup!
+
+# === USER ===
+
+i move cdy.js and cdyp into the dist folder, and now i get an error when i try running cdyp. the error is:
+
+```
+➜  npm-codeybeaver git:(main) ✗ cdyp my input
+node:internal/modules/cjs/loader:1404
+  throw err;
+  ^
+
+Error: Cannot find module '/Users/ryan/dev/codeybeaver/ts/dist/cdy.js'
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    at Function._load (node:internal/modules/cjs/loader:1211:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v22.16.0
+```
+
+this is very odd, because i don't know why it's looking in the folder ts/dist/cdy.js. it should be looking for it at ts/npm-codeybeaver/dist/cdy.js, because that's where it is.
+
+here is my cdyp file:
+
+```sh
+#!/bin/sh
+prompt="$*"
+node cdy.js prompt "$prompt"
+```
+
+any idea why this is happening?
+
+# === ASSISTANT ===
+
+Great question! The root cause is that when a script is invoked as a global npm binary, **your working directory is wherever you run the command, _not_ the directory where the script lives**.
+
+Your `cdyp` script currently says:
+```sh
+node cdy.js prompt "$prompt"
+```
+This assumes `cdy.js` is in the *current working directory* (`$PWD`)—which is _not_ true when these are installed globally (or even locally, unless you happen to be in that folder).
+
+### Solution: Use a Path Relative to the Script’s Own Location
+
+You have two common options:
+
+---
+
+## **Option 1: Reference the absolute path to `cdy.js`**
+
+In your shell (`cdyp`) script, change:
+
+```sh
+node cdy.js prompt "$prompt"
+```
+to:
+```sh
+node "$(dirname "$0")/cdy.js" prompt "$prompt"
+```
+
+This will always use the `cdy.js` that’s in the same folder as your `cdyp` script, wherever npm links those binaries.
+
+**Full `cdyp` example:**
+```sh
+#!/bin/sh
+prompt="$*"
+node "$(dirname "$0")/cdy.js" prompt "$prompt"
+```
+
+---
+
+## **Option 2: Use Only Node Wrappers (portable across all OSes)**
+
+If you drop the shell script for a Node wrapper, Node’s `require.main.filename` and the `__dirname` variable help you with relative paths _without worrying about cross-platform issues_.
+
+But on most modern developer setups, the shell script with `$(dirname "$0")` is enough!
+
+---
+
+### **Why did it try `ts/dist/cdy.js`?**
+
+That’s wherever you happened to run the `cdyp` command (your `$PWD`), not the directory of the installed scripts.  
+When npm links binaries, they go to e.g. `/usr/local/bin/cdy`, which points to `.../node_modules/.bin/cdy`, which is actually a symlink (or script) pointing to the real location. Your script must therefore always resolve binaries _relative to the script file_, not the working directory.
+
+---
+
+## **Summary Table**
+
+| What you typed in `cdyp`  | Will look for                   | Problem                      | Solution              |
+|---------------------------|---------------------------------|------------------------------|-----------------------|
+| node cdy.js prompt "$@"   | $PWD/cdy.js                     | Only works if `cdy.js` is in your shell’s current directory | Use `$(dirname "$0")/cdy.js` |
+
+---
+
+**Try the fix above and your alias should work great!**  
+Let me know if you want a pure-Node solution or if you plan to distribute to Windows users—wrappers can be tricky cross-platform.
+
+# === USER ===
+
+i have a question about installing packages globally in this manner. it seems it just puts the javascript in /opt/homebrew/bin. and then it seems to use the global install of the "commander" dependency. this is not really ideal. ideally, every global package would have its own separate list of dependcies, same as how it normally works with you install a dependency. do global installs with npm always have global dependencies, and thus potentially conflict with one another?
+
+# === ASSISTANT ===
+
+This is a great and important question. Here’s how **npm global installs actually work,** especially for CLI tools like yours:
+
+---
+
+## 1. **Where Do the Executables Go?**
+
+When you run  
+```sh
+npm install -g codeybeaver
+```
+
+- npm creates symlinks (or copies small launcher shell scripts) for your `bin` scripts (like `cdy`, `cdyp`) to the system’s global binary directory (e.g. `/usr/local/bin/`, `/opt/homebrew/bin/`, etc).
+
+- These binaries **are _not_ copies of your JS files**: they are links or tiny wrapper scripts that execute the actual file from the global npm package directory.
+
+---
+
+## 2. **Where Do the Dependencies Go?**
+
+- The _actual_ codeybeaver package and all its dependencies (including `commander`) are **installed in a global `node_modules` directory**:
+    - On MacOS with Homebrew Node: `/opt/homebrew/lib/node_modules/codeybeaver/`
+    - On system Node: `/usr/local/lib/node_modules/codeybeaver/`
+    - On Windows: `%AppData%\npm\node_modules\codeybeaver\`
+
+**This means:**
+- Your package's dependencies are **not** mixed with other global dependencies.
+- They are **local** to your globally-installed package (just like local installation, only in a different directory).
+
+---
+
+## 3. **How Do the Binaries Find Their Dependencies?**
+
+- The symlinked/executable binaries (e.g. `/opt/homebrew/bin/cdy`) invoke Node.js with the script file from  
+  `/opt/homebrew/lib/node_modules/codeybeaver/dist/cdy.js`  
+  and Node’s module resolution (`require`) starts from that directory, so it sees  
+  `/opt/homebrew/lib/node_modules/codeybeaver/node_modules/commander` etc.
+- **Each globally installed package gets its own `node_modules` folder** and does **not** share dependencies with other globally installed packages, except for npm deduplication in rare edge cases (almost never with CLI tools).
+
+---
+
+## 4. **What About the Global "commander"?**
+
+- If you see "commander" under `/opt/homebrew/lib/node_modules/codeybeaver/node_modules/`, rest assured, your package is using its own copy, not a truly global "commander".
+- You might have a global commander package somewhere, but it's **not used by other globally-installed packages unless explicitly required outside the package scope.**
+- You **should** specify `commander` (and all other dependencies) in your `package.json` as usual.
+
+---
+
+## 5. **Are There Global Dependency Conflicts?**
+
+**Very rarely.**  
+- Each global npm package install is sandboxed.
+- Conflicts only arise if, for example, two global packages try to install a binary with the same name (`npx`, `cdy`, etc.), not from Node module resolution.
+
+---
+
+## 6. **Bonus: How to Check**
+
+If you want to see where your package and its dependencies are installed globally, run:
+```sh
+npm root -g
+```
+This shows the global `node_modules` path.
+Then:
+```sh
+ls $(npm root -g)/codeybeaver/node_modules/
+```
+You should see your dependencies, e.g. `commander`.
+
+---
+
+# **Summary Table**
+
+|  What happens   | Are dependencies shared? | Where are they?    | Typical Issue        |
+|-----------------|-------------------------|--------------------|----------------------|
+| `npm install -g`| ❌ NO (except rare npm dedupe)| In your package’s own global `node_modules` | Only binary name collisions, not package-dep conflicts |
+
+---
+
+**TL;DR:**  
+Global npm packages get their own dependencies; they are not globally shared. If you see `commander` being used, it’s the one you shipped with your package (unless you wrote code to `require` a global one on purpose). The global install model is safe (from accidental dependency conflicts).
+
+Let me know if you'd like more details or have a specific scenario in mind!
+
+# === USER ===
+
+ok, i'm getting ready to send the prompt to the llm via an api. now, first, i have a question. is stdin sent in one big chunk? or is it streamed in? i need to make sure i have all the stin before sending it to the llm api.
+
+# === ASSISTANT ===
+
+Great question! Here’s how **stdin works in Node.js (and almost all Unix environments):**
+
+---
+
+## **Is stdin sent in a single chunk or streamed in?**
+
+- **Stdin is streamed in, as a sequence of chunks,** not usually as a single block.
+- In Node.js, `process.stdin` behaves as a readable stream, so you must collect all the chunks (or use helper methods to get all data) before sending it anywhere.
+
+---
+
+## **How to Ensure You Have All stdin Before Sending to the API**
+
+You must wait for the `end` event. Here’s a canonical example in Node.js (TypeScript works the same):
+
+```typescript
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => data += chunk);
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', reject);
+  });
+}
+
+// Usage:
+if (!process.stdin.isTTY) {
+  const input = await readStdin(); // <-- wait for all stdin first!
+  // Now `input` is all of the piped-in text, ready to send to the LLM
+}
+```
+
+- Don’t send the API request until you’ve received the complete `end` event.
+
+---
+
+## **What If Someone Pipes a Large File?**
+- The above code will safely accumulate *all* data in memory. If extremely large (e.g. many MB/GB), you may want to stream to a file, chunk, or use backpressure—but for most LLM prompts, this is fine.
+
+---
+
+## **Summary Table**
+
+| Data Source      | How it arrives      | How to use safely           |
+|------------------|--------------------|-----------------------------|
+| stdin            | Stream of chunks   | Wait for `'end'` then send  |
+| Command argument | One big string     | Send immediately            |
+
+---
+
+**TL;DR:**  
+- StdIn is streamed in as chunks.
+- Collect all of it first (`end` event), then send to your LLM API.
+
+Let me know if you need a reusable function, or want a version that supports both arguments and streamed stdin!
+
+# === USER ===
+
+there is a mistake in this code. i put the code that handles the prompt only inside the stdin part. however, it should probably be a separate function that is called whether we are inputting from the command line or from stdin. can you please create that function and then fix this code?
+
+```typescript
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .action(async (input: string | undefined) => {
+    if (input) {
+      console.log("Prompt (from arg):", input);
+    } else if (!process.stdin.isTTY) {
+      // stdin is not a terminal => input is being piped in
+      const stdinInput = await readStdin();
+      if (stdinInput.length > 0) {
+        try {
+          const stream = await generateChatCompletionStream({
+            messages: [
+              {
+                role: "user" as const,
+                content: stdinInput,
+              },
+            ],
+            model: "grok-3", // Pass the selected model from settings
+          });
+
+          async function* withStreamTimeout<T>(
+            stream: AsyncIterable<T>,
+            ms: number,
+          ): AsyncIterable<T> {
+            for await (const chunkPromise of stream) {
+              yield await Promise.race([
+                Promise.resolve(chunkPromise),
+                new Promise<T>((_, reject) =>
+                  setTimeout(() => reject(new Error("Chunk timeout")), ms),
+                ),
+              ]);
+            }
+          }
+
+          try {
+            // 15s timeout per chunk
+            for await (const chunk of withStreamTimeout(stream, 15000)) {
+              if (chunk.choices[0]?.delta.content) {
+                process.stdout.write(
+                  chunk.choices[0].delta.content,
+                );
+              }
+            }
+            process.stdout.write("\n");
+          } catch (error) {
+            console.error("Chunk timeout error:", error);
+            process.exit(1);
+          }
+        } catch (error) {
+          console.error("Error generating chat completion:", error);
+          process.exit(1);
+        }
+      } else {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+    } else {
+      // No input at all
+      console.error("No prompt input given. Use an argument or pipe input.");
+      process.exit(1);
+    }
+  });
+```
+
+# === ASSISTANT ===
+
+Absolutely, you're correct! Extraction into a function makes this much cleaner and more maintainable.
+
+### Refactored Version
+
+We'll create a `handlePrompt` function (or whatever name you like) which will be called with the prompt, **regardless of whether it came from the command line or stdin**.
+
+Here’s the improved code:
+
+```typescript
+async function handlePrompt(prompt: string) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3", // Pass the selected model from settings (parameterize if needed)
+    });
+
+    async function* withStreamTimeout<T>(stream: AsyncIterable<T>, ms: number): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    // 15s timeout per chunk
+    for await (const chunk of withStreamTimeout(stream, 15000)) {
+      if (chunk.choices[0]?.delta.content) {
+        process.stdout.write(chunk.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => data += chunk);
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', reject);
+  });
+}
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .action(async (input: string | undefined) => {
+    if (input) {
+      // Argument prompt
+      await handlePrompt(input);
+    } else if (!process.stdin.isTTY) {
+      // stdin is not a terminal => input is being piped in
+      const stdinInput = (await readStdin()).trim();
+      if (stdinInput.length > 0) {
+        await handlePrompt(stdinInput);
+      } else {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+    } else {
+      // No input at all
+      console.error("No prompt input given. Use an argument or pipe input.");
+      process.exit(1);
+    }
+  });
+```
+
+**How this works:**
+- All handling and API interaction is extracted into `handlePrompt`.
+- `handlePrompt` is called in both code paths: argument or stdin.
+- Prompt whitespace from stdin is trimmed to avoid accidental empty prompts.
+- Code is easier to test and maintain.
+
+Let me know if you have other preference for error handling or want this in a more general form!
+
+# === USER ===
+
+currently i have the .js files built from tyepscript in the dist folder. this folder is committed to my repo. however, i'd rather have this in my .gitignore directory and not committed. but i want to make sure when i publish this to npm, that those files are there. so "on publish" tsc should build the files and include them. how do i do this?
+
+# === ASSISTANT ===
+
+**Great question!**  
+This is a common and recommended practice: **do not commit your build artifacts (`dist/`) to git**, but **do include them when you publish to npm**.
+
+Here's the standard approach:
+
+---
+
+## 1. **Add `dist/` to your `.gitignore`**
+```bash
+# .gitignore
+dist/
+```
+
+---
+
+## 2. **Make sure `dist/` is NOT in your `.npmignore` (or use the default)**
+By default, npm will include everything except what's in `.gitignore` unless you have a `.npmignore` (which overrides `.gitignore` for npm publishes).
+
+- If you **don’t have a `.npmignore` file**, npm will automatically include your `dist/` folder on publish, even if it’s gitignored.
+- If you **have a `.npmignore`**, ensure `dist/` is NOT listed there.
+
+---
+
+## 3. **Add a prepublish script to build before publish**
+
+In your `package.json`, add:
+
+```json
+"scripts": {
+  "build": "tsc",
+  "prepublishOnly": "npm run build"
+}
+```
+
+- **`prepublishOnly`** runs automatically on `npm publish` (and when running `npm install` on the package folder itself).
+- This ensures that `dist/` is built before publishing and included in the tarball.
+
+---
+
+## 4. **Result**
+
+- `dist/` is not in git, so your repo remains clean.
+- `dist/` **is built and included automatically** in the package that `npm` publishes.
+
+---
+
+## Example `.gitignore` and `package.json` config
+
+### **.gitignore**
+```
+dist/
+node_modules/
+```
+
+### **package.json**
+```json
+{
+  "name": "codeybeaver",
+  "version": "1.0.0",
+  "main": "dist/cdy.js",
+  "bin": {
+    "cdy": "./dist/cdy.js",
+    "cdyp": "./dist/cdyp"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  }
+}
+```
+
+---
+
+## ☑️ **Checklist**
+- [x] You can safely delete `dist/` from git and add to `.gitignore`.
+- [x] Don’t add a `.npmignore` unless you want to customize; otherwise npm uses `.gitignore`.
+- [x] Use `prepublishOnly` to always build before publishing.
+
+---
+
+## **TL;DR:**
+
+- `.gitignore` = yes
+- `prepublishOnly` script = yes
+- Don’t worry, `dist/` will be in your published npm package automatically.
+
+**Let me know if you need an example package tarball or have more questions about npm publishing!**
+
+# === USER ===
+
+ok, my tool is working, and i'm able to stream output to the terminal. the model is not yet configurable, so i will want to fix that soon. but first, i have a question. the output is almost always markdown. it would be cool if the markdown, and any code blocks inside, could have syntax highlighting. it seems like this should be possible in principle. however, i don't want to do a bunch of work for this. are there some tools in the node.js ecosystem where i could somehow color-code the output to have markdown syntax highlighting and highliging for different programming langauges (in markdown code blocks), all while streaming the output to the terminal?
+
+# === ASSISTANT ===
+
+**Great insight!** Yes, this is a common wish—and you absolutely can add syntax coloring for Markdown + code blocks to your CLI output, even while streaming. You don't need to build your own: there are ecosystems for exactly this.
+
+# Your Requirements
+1. **Markdown syntax highlighting** in the terminal (e.g. bold, italics, links).
+2. **Code block syntax highlighting** for fenced code in markdown.
+3. **Works with streaming output** (i.e., you can keep writing as the LLM streams its result).
+
+---
+
+# Node.js Ecosystem Options
+
+## 1. [`marked-terminal`](https://github.com/mikaelbr/marked-terminal): The Easy Way
+
+- Parses markdown and renders colorfully in the terminal.
+- Does code highlighting with [chalk](https://github.com/chalk/chalk) and [cardinal](https://github.com/thlorenz/cardinal).
+- **Caveat:** Works best if you give it the whole Markdown text; streaming line-by-line *can* be awkward (see Option 3 for streaming).
+
+#### Example:
+
+```typescript
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
+
+// Set the terminal renderer.
+marked.setOptions({
+  renderer: new TerminalRenderer()
+});
+
+const markdown = `
+# Hello
+
+Some text, and code:
+
+\`\`\`js
+console.log("hi");
+\`\`\`
+`;
+
+console.log(marked(markdown));
+```
+**This will print pretty terminal markdown with code syntax highlighting.**  
+You'd need to collect the whole markdown block before rendering (i.e. buffer until LLM stops streaming).
+
+---
+
+## 2. [`cli-highlight`](https://github.com/felixfbecker/cli-highlight): Highlight Code Blocks
+
+If you're OK buffering entire code blocks (or the whole output), you could parse markdown for code fences (` ```js ... ``` `), extract and print them using [`cli-highlight`](https://github.com/felixfbecker/cli-highlight`). It works beautifully for almost any language:
+
+```typescript
+import { highlight } from 'cli-highlight';
+
+console.log(
+  highlight(`console.log('hello')`, { language: 'js' })
+);
+```
+
+For full Markdown: combine with `marked` or `markdown-it` to extract/render code and prose.
+
+---
+
+## 3. **Streaming Markdown Highlighting: `at markdown-it` with Custom Renderer/hook**
+
+- If *true* streaming is key (e.g. printing as each token comes in), you can attempt to "stream parse" markdown (hard!)—or just print as plain text until a code block starts, then buffer until code block ends, then run `cli-highlight` and output.
+- This is a more advanced pattern but possible: whenever you see a code block start (` ```lang `), buffer tokens until you see the end of the code block, then render that chunk highlighted; print other text immediately.
+- You’d basically implement a small state machine handling "in code block" vs "not".
+
+---
+
+## 4. [`glamour`](https://github.com/charmbracelet/glamour) (Go tool, but amazing): Not (yet) easily available in pure Node, but notable if you want a reference for beautiful terminal Markdown.
+
+---
+
+## 5. **Existing Tools Reference:**
+
+- [`bat`](https://github.com/sharkdp/bat) is a popular Rust tool showing beautiful markdown in the terminal (standalone, not node).
+- [`mdcat`](https://github.com/lunaryorn/mdcat) is another (also not node, but inspirational).
+
+---
+
+# 🟢 Recommended Path for Your CLI
+
+- For a **simple solution** and a tool most people use:  
+  **Buffer LLM output until complete**, then render using `marked-terminal` for markdown+code highlighting.
+- If you **must stream**, start with simply echoing, then improve:  
+  - For streaming, try buffering *just* code blocks for highlighting (Option 3 above).
+
+---
+
+# TL;DR Quick Implementation Example
+
+**Buffer LLM output into a string, then print:**
+
+```typescript
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
+
+marked.setOptions({ renderer: new TerminalRenderer() });
+
+// Assume you capture all the chunks into 'outputMarkdown'
+const outputMarkdown = "..."; // collect streamed text here
+console.log(marked(outputMarkdown));
+```
+
+---
+
+# **Conclusion**
+
+- **marked-terminal** is almost drop-in for Markdown output with code highlighting (buffer required).
+- For *real* streaming and highlighted code blocks as they come, you'll need a custom state machine, but it's not a ton of code.
+- Start with buffering; optimize stream-highlighting if user experience warrants it after.
+
+---
+
+Let me know if you’d like example code for streaming-detection of code blocks, or if you want more on any of the libraries mentioned!
+
+# === USER ===
+
+ok, since i'm going to have to buffer the output, i will put this on hold for right now. i have another question. can i put some kind of spinner at the end of the output so that i know the output is still going? then the spinner goes away when it is done streaming.
+
+# === ASSISTANT ===
+
+Absolutely! This is a common and user-friendly feature for CLIs. You **can add an animated spinner that displays during LLM output streaming and disappears once finished.**
+
+---
+
+## Node.js Spinner Libraries
+
+**The most widely used and easy-to-integrate spinner for Node.js CLIs is [ora](https://www.npmjs.com/package/ora):**
+
+- Simple API: `spinner.start()`, `spinner.stop()`, etc.
+- Flexible placement (start/stop anywhere in code)
+- Safe with other output (streams, logging, etc.)
+
+---
+
+## **Basic Usage Example with Streaming**
+
+Suppose you’re streaming LLM output from an API and writing it to `stdout`, here’s how you’d use `ora` for a spinner:
+
+```typescript
+import ora from 'ora';
+
+// Start spinner
+const spinner = ora('Waiting for response...').start();
+
+try {
+  // Simulated async streaming logic
+  for await (const chunk of someAsyncStream) {
+    spinner.stop(); // So the spinner doesn't interfere with text output
+    process.stdout.write(chunk);
+    spinner.start(); // Resume spinner after writing, if desired
+  }
+  spinner.stop(); // Done streaming, remove the spinner
+} catch (e) {
+  spinner.fail('An error occurred');
+  process.exit(1);
+}
+```
+
+### **Best Practice with Streaming Output**
+
+- **Spinner only spins when you're not outputting text.**  
+  Most CLIs (e.g. `npm`, `yarn`) stop the spinner, print the output, then restart the spinner.
+- **Alternatively:** Stop spinner when you first get output, and do not restart it—just use it to show that *something is happening* before any output.
+
+---
+
+## **A Simpler Version: Spinner Only During "No Output"**
+
+This is often best for human-friendly interaction:
+1. Show spinner while “connecting”/“thinking.”
+2. As soon as content starts streaming, stop the spinner and let normal output take over.
+
+```typescript
+import ora from 'ora';
+
+const spinner = ora('Waiting for LLM...').start();
+
+let gotFirstOutput = false;
+for await (const chunk of stream) {
+  if (!gotFirstOutput) {
+    spinner.stop();
+    gotFirstOutput = true;
+  }
+  process.stdout.write(chunk);
+}
+
+if (!gotFirstOutput) {
+  spinner.fail('No output received');
+} else {
+  process.stdout.write('\n');
+}
+```
+
+---
+
+## **Install `ora`**
+
+```sh
+npm install ora
+```
+
+---
+
+## **Summary Table**
+
+| Spinner library | How to use                     | Typical Usage                 |
+|-----------------|-------------------------------|-------------------------------|
+| [`ora`](https://npmjs.com/package/ora)  | Simple start/stop/fail API     | Show during wait, hide on output|
+
+---
+
+**TL;DR:**  
+- Use [ora](https://www.npmjs.com/package/ora).
+- Start the spinner before streaming.
+- Stop (or hide) the spinner as soon as you start showing output to the user, or on success/failure.
+
+---
+
+**Let me know if you want an extended example, or want to handle both spinner + progress bar (for tokens, etc.)!**
+
+# === USER ===
+
+that didn't work as expected. now, i see a spinner, but my output no longer streams. can i make the output stream while also having a spinner?
+
+# === ASSISTANT ===
+
+Great question, and this is a subtle UX/engineering challenge with Node CLI spinners and streaming!
+
+---
+
+## Why does the spinner “block” streaming output?
+
+Most spinner libraries—**including `ora`**—work by writing spinner characters in-place at the end of the terminal, usually on the same line. If you interleave `process.stdout.write()` (for streamed output) and the spinner, they will "fight" for control of the cursor and line, making the output messy or breaking either the spinner or your streaming output. `ora` expects to "own" the output area while it spins.
+
+---
+
+## How do popular tools handle this?
+
+- **The best practice:**  
+  Use the spinner **only before** streaming begins (i.e., while you’re waiting for a response/pending network/API).  
+  Once you start streaming content:
+  - **Stop/clear the spinner**.
+  - Write the output as it arrives.
+
+- **You can’t (in a pretty/easy way) have a spinner always running while text scrolls below or beside it.** Node terminal does not easily support a spinner in one area while streaming text in another.
+  - [Rich output like that generally needs a TUI library and screen management (rare for simple CLIs).]
+
+---
+
+## Solution: Show Spinner *before* streaming; stop once output starts
+
+### Pattern:
+1. Start spinner while you’re waiting for the first token/chunk from the LLM.
+2. As soon as anything arrives, stop and clear the spinner.
+3. From then on, just write to the terminal.
+
+**Example:**
+```typescript
+import ora from 'ora';
+
+const spinner = ora('Waiting for LLM response...').start();
+
+let gotFirstOutput = false;
+for await (const chunk of stream) {
+  if (!gotFirstOutput) {
+    spinner.stop(); // spinner goes away
+    gotFirstOutput = true;
+  }
+  process.stdout.write(chunk);
+}
+if (!gotFirstOutput) {
+  spinner.fail('No output received');
+}
+```
+- This gives best results for real-world CLI tools.
+- Spinners serve as "I'm working" indicators, and when output is streaming, the spinner is gone.
+
+---
+
+## If you **must** show both
+
+If you really want the spinner to remain **in the prompt line** and output stream to appear below, you'd need a full TUI terminal library ([Ink](https://github.com/vadimdemedes/ink), [blessed](https://github.com/chjj/blessed)), and a re-architecture—complex for most CLI tools.
+
+---
+
+## **Summary Table**
+
+| What user sees               | Can spinner remain? | Best Practice            |
+|------------------------------|---------------------|--------------------------|
+| Spinner, *then* streaming    | ✅ Yes              | Start spinner, stop on output |
+| Streaming output + spinner   | ❌ Not simply       | Use TUI lib, complex     |
+
+---
+
+**TL;DR:**  
+- Use the spinner only while waiting for content.
+- Once content starts streaming, stop the spinner and just stream the output.
+- This is what most CLIs do and what users expect.
+
+---
+
+**Let me know if you need example code, or if you want to experiment with advanced TUI libraries (Ink, blessed, etc.), but for 99% of tools, this "spinner until stream" pattern is exactly right!**
+
+# === USER ===
+
+ok, i have an idea. i need to add options to this tool. the first option will be "buffer". if you call "cdy prompt --buffer [prompt]" it will buffer the output. thus, it will show the spinner while output is buffering. when output is done, it removes the spinner, and renders the full output. can you please make that change?
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import { generateChatCompletionStream } from "./util/ai.js";
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({ prompt }: { prompt: string }) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3", // Pass the selected model from settings (parameterize if needed)
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    // 15s timeout per chunk
+    for await (const chunk of withStreamTimeout(stream, 15000)) {
+      if (chunk.choices[0]?.delta.content) {
+        process.stdout.write(chunk.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .action(async (input: string | undefined) => {
+    if (input) {
+      // Argument prompt
+      await handlePrompt({ prompt: input });
+    } else if (!process.stdin.isTTY) {
+      // stdin is not a terminal => input is being piped in
+      const stdinInput = (await readStdin()).trim();
+      if (stdinInput.length > 0) {
+        await handlePrompt({ prompt: stdinInput });
+      } else {
+        console.error("No input provided via stdin or as argument.");
+        process.exit(1);
+      }
+    } else {
+      // No input at all
+      console.error("No prompt input given. Use an argument or pipe input.");
+      process.exit(1);
+    }
+  });
+
+program.parse();
+```
+
+# === ASSISTANT ===
+
+Absolutely! Here's how you can add a `--buffer` option to your CLI, using `commander`.  
+- When `--buffer` is set, show a spinner while collecting the output, and only render the complete text at the end.  
+- When not set, stream as before.
+
+_Note: For pretty spinner output, you'll want [`ora`](https://www.npmjs.com/package/ora) as described earlier._
+
+#### Install required dependency (if you haven't):
+```sh
+npm install ora
+```
+
+---
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora from "ora";
+import { generateChatCompletionStream } from "./util/ai.js";
+// import { marked } from "marked"; // <-- for future markdown rendering
+
+const program = new Command();
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({ prompt, buffer }: { prompt: string, buffer: boolean }) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [
+        {
+          role: "user" as const,
+          content: prompt,
+        },
+      ],
+      model: "grok-3",
+    });
+
+    async function* withStreamTimeout<T>(
+      stream: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunkPromise of stream) {
+        yield await Promise.race([
+          Promise.resolve(chunkPromise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    if (buffer) {
+      const spinner = ora("Waiting for response...").start();
+      let output = "";
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          output += chunk.choices[0].delta.content;
+        }
+      }
+      spinner.stop();
+      process.stdout.write(output + "\n");
+    } else {
+      for await (const chunk of withStreamTimeout(stream, 15000)) {
+        if (chunk.choices[0]?.delta.content) {
+          process.stdout.write(chunk.choices[0].delta.content);
+        }
+      }
+      process.stdout.write("\n");
+    }
+    process.exit(0);
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    process.exit(1);
+  }
+}
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (from arg or stdin)")
+  .option('--buffer', 'Buffer the entire output before displaying (useful for markdown rendering)')
+  .action(async (input: string | undefined, options: { buffer?: boolean }) => {
+    let promptText: string | undefined = input;
+    if (!promptText && !process.stdin.isTTY) {
+      // stdin is not a terminal => input is being piped in
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No input provided via stdin or as argument.");
+      process.exit(1);
+    }
+    await handlePrompt({ prompt: promptText, buffer: !!options.buffer });
+  });
+
+program.parse();
+```
+
+---
+
+## Now You Can:
+
+- Stream by default:
+  ```sh
+  cdy prompt "hello"
+  ```
+- Buffer (and see a spinner):
+  ```sh
+  cdy prompt --buffer "hello"
+  ```
+- Or for piping:
+  ```sh
+  echo "hello" | cdy prompt --buffer
+  ```
+
+When you add markdown rendering later, you can plug it in to the "buffer" case.
+
+---
+
+Let me know if you want an example with markdown highlighting!
+
+# === USER ===
+
+
