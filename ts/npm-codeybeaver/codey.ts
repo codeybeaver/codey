@@ -105,7 +105,7 @@ program
 program
   .command("prompt [input]")
   .description("Send a prompt to the LLM (argument or stdin)")
-  .option("--model <model>", "Model to use (default: grok-3)", "grok-3")
+  .option("--model <model>", "Model to use", "grok-3")
   .action(async (input: string | undefined, opts: { model: string }) => {
     let promptText = input;
     if (!promptText && !process.stdin.isTTY) {
