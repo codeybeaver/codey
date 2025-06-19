@@ -22,7 +22,7 @@ This provides two global commands:
 
 ## Usage
 
-### **codey** - Main Command
+### **codey**
 
 #### Prompt Subcommand
 
