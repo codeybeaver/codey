@@ -238,3 +238,244 @@ cdy prompt "what is 1 + 1?"
 ```
 
 each command may then take additional options. how can we make this change?
+
+# === ASSISTANT ===
+
+Great idea! Commander supports **git-style subcommands** ("cdy <command> [options]"). Here’s how you can structure your CLI for this.
+
+---
+
+## Step-by-Step: Git-Style Subcommands with Commander (TypeScript)
+
+### 1. Update your code to define subcommands
+
+```typescript
+import { Command } from 'commander';
+
+const program = new Command();
+
+program
+  .name('cdy')
+  .description('Codey Beaver CLI: An LLM-powered programming assistant')
+  .version('0.1.0');
+
+// Define the `prompt` subcommand
+program
+  .command('prompt <text>')
+  .description('Send a prompt to the LLM')
+  .option('-m, --model <model>', 'Choose an LLM backend/model')
+  .action((text: string, options: { model?: string }) => {
+    console.log('Prompt:', text);
+    if (options.model) {
+      console.log('Model:', options.model);
+    }
+  });
+
+program.parse();
+```
+
+### 2. Usage Example
+
+```sh
+cdy prompt "what is 1 + 1?"
+# Output: Prompt: what is 1 + 1?
+
+cdy prompt "generate a hello world script" -m gpt-4
+# Output: 
+# Prompt: generate a hello world script
+# Model: gpt-4
+```
+
+### 3. Add More Subcommands
+
+Just chain more `.command()` calls for more verbs (like `summarize`, `refactor`, etc).
+
+---
+
+## **Key Points**
+- Subcommands are defined with `.command('name <args>')`
+- Each subcommand gets its own `.action()` callback.
+- Commander automatically handles help output (`cdy --help`).
+
+---
+
+**References:**  
+- [Commander docs: Subcommands](https://github.com/tj/commander.js/#subcommands)
+
+---
+
+Let me know if you want to split each subcommand into its own file (good for larger CLIs), or if you need zod integration on top of this!
+
+# === USER ===
+
+right now i have a separate shell script that runs the build node.js file:
+
+```sh
+#!/bin/sh
+node cdy.js $@
+```
+
+taht file is called cdy. it called "node cdy.js ...". is that a good way of doing this? or should i make the built javascript file directly executable?
+
+# === ASSISTANT ===
+
+That’s a great question! Both approaches are common, but there’s a **better, more idiomatic Node.js way** for CLI tools:  
+**Make your built JavaScript file directly executable** by adding a [shebang line](https://en.wikipedia.org/wiki/Shebang_(Unix)) at the top.
+
+---
+
+## How to Make Your Built JS Directly Executable
+
+1. **Add a shebang to the top of your entrypoint TypeScript file:**
+   
+   At the top of `cdy.ts`, add:
+   ```typescript
+   #!/usr/bin/env node
+   ```
+   (It’s important that this is the absolute first line—no blank lines or comments before it!)
+
+2. **Build/compile as normal:**  
+   When using `tsc`, the shebang line is preserved in the output JS file (`cdy.js`).
+
+3. **Set the executable bit:**
+   ```sh
+   chmod +x dist/cdy.js
+   ```
+
+4. **Run directly:**
+   ```sh
+   ./dist/cdy.js prompt "what is 1 + 1?"
+   ```
+
+You no longer need a shell wrapper script. You can also set up an npm CLI binary in your `package.json` (see below).
+
+---
+
+## Bonus: Distribute as an `npm` CLI Tool
+
+If you want users to be able to do `npx @codeybeaver/cli` or run `cdy` after installing globally, add this to your `package.json`:
+
+```json
+"bin": {
+  "cdy": "./dist/cdy.js"
+}
+```
+
+Now, after installing globally with `npm install -g .`, users get a `cdy` command.
+
+---
+
+### Why Shebang + Executable Bit is Better Than a Shell Script
+
+- Keeps deployment/distribution simple
+- No shell script needed
+- Standard for Node.js CLIs (npm, create-react-app, etc.)
+- One command to maintain and ship
+
+---
+
+**Summary:**  
+Prefer using a shebang line and setting the file executable. Only use a shell script wrapper in exotic scenarios (e.g., needing to set env vars or support multiple platforms with different node paths).
+
+Let me know if you want an end-to-end example or further distribution tips!
+
+# === USER ===
+
+that's fine, however, i don't want ".js" to be in the command when it is installed on the user's device. can that be removed somehow? note that i am building my .ts file to .js using typescript.
+
+# === ASSISTANT ===
+
+Absolutely, you can have users run `cdy` (not `cdy.js`), just like `git` or `npm`! 👍 Here’s how you do that for a Node/TypeScript CLI:
+
+---
+
+## 1. Use the `"bin"` Field in `package.json`
+
+Specify the CLI name (`cdy`) and the path to your **compiled** JavaScript file:
+
+```json
+"bin": {
+  "cdy": "./dist/cdy.js"
+}
+```
+
+- When users (or you) install your package globally (`npm install -g .` or as a real published package), npm will create a **symlink** in the user’s `$PATH` pointing from `cdy` (no extension) to your built JS file.
+
+---
+
+## 2. Make Sure the Entrypoint is Executable and Has a Shebang
+
+In your `cdy.ts`, the first line should be:
+
+```typescript
+#!/usr/bin/env node
+```
+
+When you build with TypeScript, this line will be copied to `dist/cdy.js`.
+
+After building, set the file as executable:
+
+```sh
+chmod +x dist/cdy.js
+```
+
+---
+
+## 3. Try it Out!
+
+If you install the package globally:
+
+```sh
+npm install -g .
+```
+or run directly with [`npx`](https://docs.npmjs.com/cli/v8/commands/npx):
+
+```sh
+npx @codeybeaver/cli prompt "test"
+```
+you can simply type:
+
+```sh
+cdy prompt "what is 1 + 1?"
+```
+
+**No `.js` needed.**
+
+---
+
+## 4. You Do **Not** Need to Rename Files
+
+Don’t rename your built `cdy.js` as just `cdy`. Node CLI convention is:
+- Source: `cdy.ts`
+- Compiled: `cdy.js`
+- User-facing binary: whatever you specify in `"bin"` (usually `cdy`), automatically set up by npm
+
+---
+
+## 5. Final Package.json Example
+
+```json
+{
+  "name": "@codeybeaver/cli",
+  "version": "0.1.0",
+  "bin": {
+    "cdy": "./dist/cdy.js"
+  },
+  //...other fields...
+}
+```
+
+---
+
+**Summary:**  
+- Put `#!/usr/bin/env node` at the top of your TypeScript file  
+- Compile as normal  
+- Add `"bin": { "cdy": "./dist/cdy.js" }` to your `package.json`  
+- Make sure the JS file is executable  
+- Users will just run `cdy`  
+
+Ready for the next step? 🎉
+
+# === USER ===
+
+
