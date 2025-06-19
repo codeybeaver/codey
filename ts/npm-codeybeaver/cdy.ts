@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import z from "zod/v4";
+import { OpenAI } from "openai";
 
 const program = new Command();
 
