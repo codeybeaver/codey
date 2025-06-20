@@ -5401,4 +5401,1386 @@ Let me know if you want to update the README to reflect these changes or if you 
 
 # === USER ===
 
+great, however, now there is a new problem. both "format" and "color" creat the spinner. the two spinners seem to conflict with one another, causing flickering. i'm not immediately sure what to do about this. any idea how to fix?
+
+# === ASSISTANT ===
+
+I'm glad you brought up this issue. The flickering you're seeing is likely due to both `format` and `color` commands creating separate spinners when used in a pipeline (e.g., `codey prompt ... | codey format | codey color`). Since both commands run spinners independently while processing piped input, their animations can conflict, leading to flickering or overlapping output in the terminal.
+
+### Root Cause
+- Each command (`format` and `color`) checks if input is piped (`!process.stdin.isTTY && !input`) and starts a spinner while waiting for `stdin` data.
+- In a pipeline, both commands execute concurrently to some extent (though `format` writes to `color` via the pipe), and their spinners compete for the same terminal space, causing flickering.
+
+### Solution Options
+To fix this, we need to ensure that only one spinner is active at a time, or suppress spinners in downstream commands when they are part of a pipeline. Here are a few approaches:
+
+1. **Disable Spinner in Downstream Commands (e.g., `color`)**:
+   - Since `format` is often the first command to process piped input in a pipeline, let it show the spinner, and disable the spinner in `color` when input is piped. This avoids duplicate spinners but might mean less feedback for the `color` step.
+   
+2. **Detect Pipeline Position or Use a Single Spinner**:
+   - Unfortunately, Node.js doesn't provide a direct way to detect if a command is "mid-pipeline" vs. "last in pipeline." A heuristic like checking `process.stdout.isTTY` (whether output is to a terminal) can help: if output is not to a terminal (e.g., `format` piping to `color`), suppress the spinner in the upstream command.
+   - This ensures only the last command in the pipeline (whose output goes to the terminal) shows a spinner.
+
+3. **Short Spinner Duration or Sequential Animation**:
+   - Alternatively, ensure spinners don't overlap by stopping one before starting another, though this is hard to control in a pipeline since commands run independently.
+
+### Recommended Solution: Spinner Only in Last Command
+The simplest and most effective approach is to show a spinner only in the command whose output goes directly to the terminal (i.e., when `process.stdout.isTTY` is `true`). This means:
+- In a pipeline like `codey prompt ... | codey format | codey color`, only `color` will show a spinner because its output goes to the terminal.
+- For `codey prompt ... | codey format`, only `format` shows a spinner.
+- This avoids conflicts and flickering since only one spinner is active at a time—the one for the last command.
+
+### Updated Code
+Below is the revised code where spinners are shown only when `process.stdout.isTTY` is `true` (output is directly to a terminal, not piped to another command).
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    // Show spinner only if input is piped AND output is to terminal (not piped further)
+    if (isPiped && process.stdout.isTTY) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedInput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleColor({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    // Show spinner only if input is piped AND output is to terminal (not piped further)
+    if (isPiped && process.stdout.isTTY) {
+      spinner = ora("Receiving and colorizing input...").start();
+    }
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error colorizing input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped && process.stdout.isTTY) {
+      spinner = ora("Receiving input...").start();
+      formatText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Formatting input...";
+      }
+    }
+    if (!formatText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+      isPiped,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped && process.stdout.isTTY) {
+      spinner = ora("Receiving input...").start();
+      colorText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Colorizing input...";
+      }
+    }
+    if (!colorText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for colorizing (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
+      isPiped,
+    });
+  });
+
+program.parse();
+```
+
+### Key Change Explained:
+- **Conditional Spinner Based on Output Destination**:
+  - Updated the spinner logic in both `format` and `color` commands to check `process.stdout.isTTY` in addition to whether input is piped (`isPiped`).
+  - A spinner is shown only if input is piped **and** output is directly to a terminal (not piped to another command). This ensures that in a pipeline like `codey prompt ... | codey format | codey color`, only `color` (the last command) shows a spinner, avoiding conflicts and flickering.
+
+### Usage Examples:
+- **Pipeline with Spinner Only at the End**:
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format | codey color
+  ```
+  - `format` will not show a spinner because its output is piped to `color` (`process.stdout.isTTY` is `false`).
+  - `color` will show a spinner because its output goes to the terminal (`process.stdout.isTTY` is `true`).
+
+- **Single Command with Spinner**:
+  ```sh
+  codey prompt "Write a Markdown tutorial." | codey format
+  ```
+  - `format` shows a spinner because its output goes to the terminal.
+
+This approach eliminates flickering by ensuring only one spinner is active at a time—the one for the last command in the pipeline.
+
+Let me know if this resolves the issue, if you want a different spinner behavior (e.g., spinner only in the first command), or if you'd like an updated README or other changes!
+
+# === USER ===
+
+that didn't work. that caused this error:
+
+```
+No input supplied for formatting (argument or stdin required).
+No input supplied for colorizing (argument or stdin required).
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: write EPIPE
+    at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+    at writeGeneric (node:internal/stream_base_commons:150:3)
+    at Socket._writeGeneric (node:net:971:11)
+    at Socket._write (node:net:983:8)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at handlePrompt (file:///Users/ryan/dev/codeybeaver/ts/npm-codeybeaver/dist/codey.js:34:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Command.<anonymous> (file:///Users/ryan/dev/codeybeaver/ts/npm-codeybeaver/dist/codey.js:109:5)
+Emitted 'error' event on Socket instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -32,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+
+Node.js v22.16.0
+```
+
+any idea?
+
+# === ASSISTANT ===
+
+I'm sorry to hear that the change didn't work as expected and resulted in an `EPIPE` error. Let's analyze the error and provide a solution.
+
+### Root Cause of the Error
+The error message indicates a few issues:
+1. **"No input supplied for formatting/colorizing"**: This suggests that the input validation logic is failing because the input is empty or not being read correctly in the pipeline.
+2. **"Error: write EPIPE"**: This error occurs when a process tries to write to a pipe (or socket) that has been closed on the other end. In a pipeline like `codey prompt ... | codey format | codey color`, if one of the commands exits prematurely or closes the pipe unexpectedly, downstream commands will fail with an `EPIPE` error when trying to write to the closed pipe.
+3. **Spinner Condition Issue**: The condition `process.stdout.isTTY` for showing the spinner might be causing unintended behavior in the pipeline. More critically, the logic for handling `stdin` reading and spinner management might be exiting too early or not handling pipe closure gracefully.
+
+The primary issue seems to be related to how the pipeline handles input/output and spinner logic. When `process.stdout.isTTY` is used to conditionally show the spinner, it might prevent proper input processing in intermediate pipeline stages, or the spinner might be stopping/starting in a way that disrupts the flow. Additionally, if `prompt` exits or closes its output stream unexpectedly, it can cause the downstream commands to fail with `EPIPE`.
+
+### Solution
+To fix this, we need to:
+1. **Ensure Proper Pipeline Handling**: Make sure each command in the pipeline processes input/output correctly, even if upstream commands exit or close the pipe.
+2. **Fix Spinner Logic**: Show spinners only in a way that doesn't interfere with input/output processing, and avoid duplicate spinners by having only the last command show a spinner if possible. However, since `process.stdout.isTTY` didn't work as expected, we'll simplify by showing spinners for piped input in all commands but ensure they don't disrupt the flow.
+3. **Graceful Error Handling**: Add better error handling for pipe closures to prevent `EPIPE` errors from crashing the process.
+
+However, after reviewing the error more closely, the simplest and most effective solution is to **revert the spinner condition change** and instead focus on **sequential spinner management** by ensuring each command stops its spinner before proceeding to output. The `EPIPE` error might also be related to how `process.exit(0)` is called, which can close the output stream prematurely in a pipeline. We'll adjust the code to avoid early exits where possible and handle errors more gracefully.
+
+### Updated Code
+Below is the updated code with a focus on fixing the pipeline and spinner behavior to prevent flickering and `EPIPE` errors. The key change is to ensure proper spinner cleanup and avoid premature `process.exit()` calls that might close the pipe.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+    // Do not exit here to avoid closing the pipe prematurely in a pipeline
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and formatting input...").start();
+    }
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${formattedInput}\n`);
+    // Do not exit here to avoid closing the pipe prematurely
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleColor({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving and colorizing input...").start();
+    }
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(input);
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${renderedOutput}\n`);
+    // Do not exit here to avoid closing the pipe prematurely
+  } catch (err) {
+    console.error("Error colorizing input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      formatText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Formatting input...";
+        spinner.stop();
+      }
+    }
+    if (!formatText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+      isPiped,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Receiving input...").start();
+      colorText = (await readStdin()).trim();
+      if (spinner) {
+        spinner.text = "Colorizing input...";
+        spinner.stop();
+      }
+    }
+    if (!colorText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for colorizing (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
+      isPiped,
+    });
+  });
+
+program.parse();
+```
+
+### Key Changes Explained:
+- **Removed `process.exit(0)` from Handler Functions**:
+  - Removed `process.exit(0)` from `handlePrompt`, `handleFormat`, and `handleColor` to prevent premature closure of the output stream, which can cause `EPIPE` errors in a pipeline. The program will exit naturally after the action completes, or explicitly on error with `process.exit(1)`.
+- **Simplified Spinner Logic**:
+  - Reverted to showing spinners for piped input in both `format` and `color` commands, but ensured that each spinner is stopped before proceeding to output. This doesn't fully eliminate the possibility of flickering (since both spinners might run in quick succession), but it reduces conflicts by ensuring each spinner is short-lived and stopped before the next command starts processing.
+- **Moved Spinner Stop Earlier**:
+  - Ensured the spinner is stopped before writing output in each command to minimize overlap or interference with terminal rendering.
+
+### Why This Should Work
+- The `EPIPE` error is likely caused by `process.exit(0)` closing the output stream prematurely in one of the handler functions, breaking the pipeline. By removing these explicit exits, the commands should complete their output properly, allowing downstream commands to read from the pipe without issues.
+- While both `format` and `color` may still show spinners briefly in a pipeline, stopping the spinner before writing output and avoiding premature exits should reduce flickering and prevent errors. If flickering persists, we can explore more advanced solutions like disabling spinners in upstream commands via environment variables or custom flags.
+
+### Usage Example:
+- **Pipeline Without Flickering (Hopefully)**:
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format | codey color
+  ```
+  - `format` will show a spinner briefly while receiving and formatting input, then stop it before outputting.
+  - `color` will show a spinner briefly while receiving the formatted input, then stop it before rendering the colored output.
+  - With spinners stopping quickly and no premature exits, flickering should be minimized, and `EPIPE` errors should be avoided.
+
+### If Flickering Persists
+If you still see flickering or other issues, we can:
+1. **Add a Custom Flag or Env Var**: Introduce a flag like `--no-spinner` or check an environment variable to disable spinners in upstream commands.
+2. **Delay Spinner in Downstream Commands**: Add a small delay or condition to ensure only one spinner runs at a time, though this is harder in separate processes.
+3. **Combine Commands Temporarily**: Revert to a single command for formatting and colorizing if pipeline separation isn't critical.
+
+Let me know if this resolves the issue, if you still see errors or flickering, or if you'd like to explore one of the alternative solutions! I'm also happy to update the README or make further adjustments.
+
+# === USER ===
+
+that didn't work. there is still flickering. also, i'm not sure this is the best logic anyway. shouldn't we change the way the output stream works instead? is it possible to detect where the "prompt" output is going, and if it is going to another command, to output a spinner while that is happening? then there is  no spinner for "format" or "color", but only for "prompt". that would eliminate conflict between multiple spinners.
+
+# === ASSISTANT ===
+
+I'm sorry to hear that the flickering issue persists. You're absolutely right to question the current approach and suggest a better way to handle the spinner logic. Let's address this by rethinking the output stream and spinner placement. Your idea to detect where the `prompt` output is going and show a spinner only during `prompt` processing (while it's generating output) is a great way to eliminate conflicts between multiple spinners in a pipeline.
+
+### Current Issue
+The flickering occurs because multiple commands (`format` and `color`) in a pipeline each create and manage their own spinners when processing piped input. Even with quick stopping of spinners, the rapid succession of animations in the terminal causes visual conflicts. Additionally, the `EPIPE` error from the previous attempt likely stemmed from premature stream closure, which we've addressed by removing early `process.exit()` calls, but the spinner conflict remains.
+
+### Proposed Solution: Spinner Only in `prompt` When Output is Piped
+We can centralize the spinner logic in the `prompt` command, showing it while generating output if the output is being piped to another command or directly to the terminal. This way, `format` and `color` will not show spinners at all, eliminating any chance of conflict or flickering. We'll use `process.stdout.isTTY` to infer whether `prompt`'s output is going directly to a terminal (no spinner needed in this case for simplicity, or spinner if desired) or being piped (show spinner to indicate processing).
+
+However, there's a slight challenge: in Node.js, we can't directly "detect" the full pipeline or where output is ultimately going beyond whether it's a TTY or not (`process.stdout.isTTY`). We can infer:
+- If `process.stdout.isTTY` is `true`, output is going directly to a terminal (likely no further commands in the pipeline).
+- If `process.stdout.isTTY` is `false`, output is being piped to another command or file.
+
+We'll show a spinner in `prompt` when `process.stdout.isTTY` is `false` (i.e., output is piped), indicating that processing is happening and downstream commands are waiting. When output is directly to a terminal, we can optionally show a spinner or skip it for minimal visual noise. For now, let's show a spinner in `prompt` regardless of output destination to ensure feedback during LLM processing, but stop it before writing output to avoid interference.
+
+### Updated Code
+Below is the revised code where the spinner is shown only in the `prompt` command while generating output, and removed entirely from `format` and `color` to prevent conflicts.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const spinner = ora("Generating response from LLM...").start();
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    let firstChunkReceived = false;
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (!firstChunkReceived) {
+        spinner.stop();
+        firstChunkReceived = true;
+      }
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+    process.stdout.write(`${formattedInput}\n`);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleColor({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(input);
+    process.stdout.write(`${renderedOutput}\n`);
+  } catch (err) {
+    console.error("Error colorizing input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      formatText = (await readStdin()).trim();
+    }
+    if (!formatText) {
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      colorText = (await readStdin()).trim();
+    }
+    if (!colorText) {
+      console.error("No input supplied for colorizing (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
+    });
+  });
+
+program.parse();
+```
+
+### Key Changes Explained:
+- **Spinner Moved to `prompt` Command**:
+  - Added a spinner in `handlePrompt` to show "Generating response from LLM..." while waiting for the LLM stream to start producing output.
+  - The spinner starts before the stream is initiated and stops as soon as the first chunk of output is received (to avoid interference with streaming output). This provides feedback during the potentially long wait for LLM generation, which is the primary bottleneck in the pipeline.
+- **Removed Spinners from `format` and `color` Commands**:
+  - Completely removed spinner logic from `format` and `color` to eliminate any chance of conflict or flickering. These commands now process input silently (which is fine since they are typically fast operations compared to `prompt`).
+- **Preserved Input Handling**:
+  - Kept the input reading logic (`stdin` or argument) intact for all commands, ensuring pipelines work as expected without premature exits or pipe closures.
+
+### Why This Should Work
+- **Single Spinner**: By having only one spinner in the pipeline (in `prompt`, where the longest wait typically occurs), we eliminate conflicts between multiple spinners, which should resolve the flickering issue.
+- **Feedback Where It Matters**: Users get visual feedback during the LLM generation phase (the slowest part), and since `format` and `color` are quick, they don't need spinners to indicate progress.
+- **No Premature Exits**: Continuing to avoid `process.exit(0)` in handler functions ensures that pipes remain open for downstream commands, preventing `EPIPE` errors.
+
+### Usage Examples:
+- **Pipeline Without Flickering**:
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format | codey color
+  ```
+  - Only `prompt` shows a spinner while generating the response from the LLM.
+  - `format` and `color` process the input silently and output their results without additional spinners, avoiding flickering.
+
+- **Direct Prompt with Spinner**:
+  ```sh
+  codey prompt "What is 1 + 1?"
+  ```
+  - A spinner shows while waiting for the LLM response, stopping once output starts streaming.
+
+### If Issues Persist
+If you still encounter flickering or other issues:
+1. **Conditional Spinner in `prompt`**: We could refine the spinner in `prompt` to show only when `process.stdout.isTTY` is `false` (i.e., output is piped), though since `prompt` is the source of the pipeline, showing a spinner regardless provides consistent feedback.
+2. **Environment Variable or Flag**: Add a `--no-spinner` flag or check an environment variable to disable spinners entirely for advanced users who don't want visual noise.
+3. **Recombine Commands**: If pipeline separation continues to cause issues, consider recombining `format` and `color` into a single command with flags to toggle behavior.
+
+Let me know if this resolves the flickering issue, if you see any other errors, or if you'd like to explore one of the alternative solutions or update the README!
+
+# === USER ===
+
+that didn't quite work, because the spinner now disappears as soon as the LLM starts to respond. i have another idea. we should remove the spinner from all three commands. instead, there should be a new command, "buffer". what this command does is take the input and buffer all of it, displaying a spinner while it is buffering. and then, once done, it outputs all the text at once. that way, only this command, "buffer", has a spinner, and there is no conflict between streaming and the spinner, and there is no conflict between different commands. can you please make this change?
+
+# === ASSISTANT ===
+
+I'm sorry to hear that the previous solution didn't meet your expectations due to the spinner disappearing too early. Your new idea to introduce a dedicated `buffer` command that handles buffering input with a spinner, while removing spinners from all other commands, is an excellent approach. This will centralize the spinner logic in one place, eliminate conflicts between streaming and spinners, and avoid conflicts between multiple commands.
+
+### Solution Overview
+We'll create a new `buffer` command that:
+- Buffers all input from stdin or a command-line argument.
+- Shows a spinner while buffering (especially useful for piped input from `prompt` or other sources).
+- Outputs the entire buffered text at once after buffering completes.
+- Remove spinners from `prompt`, `format`, and `color` to ensure no conflicts.
+
+This way, users can use `buffer` in a pipeline (e.g., `codey prompt ... | codey buffer | codey format | codey color`) to get visual feedback during long operations like LLM responses, without any spinner interference in other commands.
+
+### Updated Code
+Below is the revised code with the new `buffer` command added and spinners removed from `prompt`, `format`, and `color`.
+
+```typescript
+#!/usr/bin/env node
+import { Command } from "commander";
+import ora, { Ora } from "ora";
+import { marked } from "marked";
+import TerminalRenderer from "marked-terminal";
+import { generateChatCompletionStream } from "./util/ai.js";
+import prettier from "prettier";
+
+const program = new Command();
+
+/* ───────────────────────────────────────────────────── Helpers ──────────── */
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () =>
+      resolve(Buffer.concat(chunks).toString("utf8").trim()),
+    );
+    process.stdin.on("error", reject);
+  });
+}
+
+async function handlePrompt({
+  prompt,
+  model,
+}: {
+  prompt: string;
+  model: string;
+}) {
+  try {
+    const stream = await generateChatCompletionStream({
+      messages: [{ role: "user" as const, content: prompt }],
+      model,
+    });
+
+    async function* withTimeout<T>(
+      src: AsyncIterable<T>,
+      ms: number,
+    ): AsyncIterable<T> {
+      for await (const chunk of src) {
+        yield await Promise.race([
+          Promise.resolve(chunk),
+          new Promise<T>((_, rej) =>
+            setTimeout(() => rej(new Error("Chunk timeout")), ms),
+          ),
+        ]);
+      }
+    }
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        process.stdout.write(c.choices[0].delta.content);
+      }
+    }
+    process.stdout.write("\n");
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleBuffer({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Buffering input...").start();
+    }
+    // Output the input as-is after buffering
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${input}\n`);
+  } catch (err) {
+    console.error("Error buffering input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleFormat({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    // Format the input Markdown with prettier to enforce max width of 80
+    const formattedInput = await prettier.format(input, {
+      parser: "markdown",
+      printWidth: 80,
+      proseWrap: "always",
+    });
+    process.stdout.write(`${formattedInput}\n`);
+  } catch (err) {
+    console.error("Error formatting input:", err);
+    process.exit(1);
+  }
+}
+
+async function handleColor({
+  input,
+}: {
+  input: string;
+}) {
+  try {
+    // Setup marked-terminal renderer for syntax highlighting
+    // @ts-ignore – marked-terminal lacks full typings
+    marked.setOptions({ renderer: new TerminalRenderer() });
+    const renderedOutput = marked(input);
+    process.stdout.write(`${renderedOutput}\n`);
+  } catch (err) {
+    console.error("Error colorizing input:", err);
+    process.exit(1);
+  }
+}
+
+/* ──────────────────────────────────────────── CLI definition ────────────── */
+
+program
+  .name("codey")
+  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .version("0.1.0");
+
+program
+  .command("prompt [input]")
+  .description("Send a prompt to the LLM (argument or stdin)")
+  .option("--model <model>", "Model to use", "grok-3")
+  .action(async (input: string | undefined, opts: { model: string }) => {
+    let promptText = input;
+    if (!promptText && !process.stdin.isTTY) {
+      promptText = (await readStdin()).trim();
+    }
+    if (!promptText) {
+      console.error("No prompt supplied (argument or stdin required).");
+      process.exit(1);
+    }
+    await handlePrompt({
+      prompt: promptText,
+      model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("buffer [input]")
+  .description("Buffer input and show a spinner while waiting (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let bufferText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Buffering input...").start();
+      bufferText = await readStdin();
+      if (spinner) {
+        spinner.stop();
+      }
+    }
+    if (!bufferText) {
+      if (spinner) spinner.stop();
+      console.error("No input supplied for buffering (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleBuffer({
+      input: bufferText,
+      isPiped,
+    });
+  });
+
+program
+  .command("format [input]")
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let formatText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      formatText = (await readStdin()).trim();
+    }
+    if (!formatText) {
+      console.error("No input supplied for formatting (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleFormat({
+      input: formatText,
+    });
+  });
+
+program
+  .command("color [input]")
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let colorText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    if (isPiped) {
+      colorText = (await readStdin()).trim();
+    }
+    if (!colorText) {
+      console.error("No input supplied for colorizing (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleColor({
+      input: colorText,
+    });
+  });
+
+program.parse();
+```
+
+### Key Changes Explained:
+- **Added `buffer` Command**:
+  - Created a new `buffer` command that takes input from the command line or stdin.
+  - Added a spinner in `handleBuffer` to show "Buffering input..." while waiting for piped input to complete. The spinner stops once all input is buffered, and then the entire text is output at once.
+  - This centralizes the spinner logic in one command, ensuring no conflicts with streaming or other commands.
+
+- **Removed Spinners from `prompt`, `format`, and `color`**:
+  - Completely removed spinner logic from `prompt`, `format`, and `color` to eliminate any possibility of multiple spinners causing flickering or conflicts.
+  - These commands now process input and output without any visual feedback, relying on `buffer` for spinner display when needed.
+
+### Why This Should Work
+- **Single Spinner Location**: By placing the spinner only in the `buffer` command, we ensure that only one spinner is ever active in a pipeline, eliminating conflicts and flickering.
+- **Buffering Solves Streaming Conflict**: Since `buffer` waits for all input to be received before outputting (with a spinner during the wait), it avoids interference with streaming output from `prompt` or other commands. Users can place `buffer` strategically in the pipeline where feedback is most needed (e.g., after `prompt`).
+- **Flexibility**: Users can choose whether to use `buffer` for feedback or skip it for direct processing without spinners.
+
+### Usage Examples:
+- **Pipeline with Spinner in `buffer`**:
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey buffer | codey format | codey color
+  ```
+  - `prompt` streams output without a spinner.
+  - `buffer` shows a spinner while buffering the input from `prompt`, then outputs all text at once.
+  - `format` and `color` process the input silently without spinners, producing the final output.
+
+- **Direct Use of `buffer`**:
+  ```sh
+  echo "Some long text input here." | codey buffer
+  ```
+  - `buffer` shows a spinner while waiting for input, then outputs the text.
+
+- **Without `buffer` (No Spinner)**:
+  ```sh
+  codey prompt "What is 1 + 1?" | codey format
+  ```
+  - No spinner is shown at any stage; processing happens silently.
+
+This approach should resolve both the flickering issue (by having only one spinner) and the spinner-streaming conflict (by buffering with a dedicated command).
+
+Let me know if this works as expected, if you want to adjust the spinner behavior in `buffer`, or if you'd like an updated README to reflect this new command!
+
+# === USER ===
+
+that worked perfectly! finally, i think this is a good configuration.
+
+can you add information about the new "buffer" command to the readme?
+
+```
+# Codey Beaver 🦫
+
+_Codey Beaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help
+with computer programming tasks._
+
+---
+
+## Installation
+
+Install globally using npm:
+
+```sh
+npm install -g codeybeaver
+```
+
+This provides one global command:
+
+- `codey` &nbsp;—&nbsp; Main entry point for Codey Beaver
+
+---
+
+## Usage
+
+### **codey**
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directly to the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | codey prompt
+  ```
+
+- **Optional flags:**
+
+  - `--model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI
+    account or xAI account.
+
+    **Example:**
+
+    ```sh
+    codey prompt --model gpt-4o "What is the capital of France?"
+    ```
+
+  (You can also check `codey prompt --help` for the full list of available
+  options.)
+
+#### Format Subcommand
+
+Format and highlight Markdown input for display in the terminal. This command
+wraps prose text to a maximum width of 80 characters and applies syntax
+highlighting to code blocks and other Markdown elements.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  ```
+
+- **Piping with `prompt` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey format
+  ```
+
+  While receiving piped input, a spinner is shown to indicate work is in
+  progress.
+
+  (You can also check `codey format --help` for the full list of available
+  options.)
+
+---
+
+## Help
+
+Run the following to see more options:
+
+```sh
+codey --help
+```
+
+---
+
+## Example Workflows
+
+```sh
+# Simple math prompt
+codey prompt "What is 2 plus 2?"
+
+# Code generation
+codey prompt "Generate a JavaScript function that reverses an array"
+
+# Pipe input as prompt
+cat my-instructions.txt | codey prompt
+
+# Generate and format Markdown output
+codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey format
+
+# Format direct Markdown input
+codey format "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`"
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+_Developed by Identellica LLC_ 🦫
+```
+
+# === ASSISTANT ===
+
+I'm thrilled to hear that the configuration with the `buffer` command worked perfectly! Below is the updated README with information about the new `buffer` command added to the **Usage** section, and I've also revised the **Example Workflows** section to reflect the current functionality. I've made corrections to align with the split of `format` and `color` commands and removed outdated references to spinners in `format`.
+
+```markdown
+# Codey Beaver 🦫
+
+_Codey Beaver is a versatile CLI and Node.js toolkit for leveraging LLMs to help
+with computer programming tasks._
+
+---
+
+## Installation
+
+Install globally using npm:
+
+```sh
+npm install -g codeybeaver
+```
+
+This provides one global command:
+
+- `codey` &nbsp;—&nbsp; Main entry point for Codey Beaver
+
+---
+
+## Usage
+
+### **codey**
+
+#### Prompt Subcommand
+
+Send a prompt (question, request, etc.) directly to the LLM.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey prompt "What is 1 + 1?"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Write a Python hello world script" | codey prompt
+  ```
+
+- **Optional flags:**
+
+  - `--model <model>`  
+    Specify the LLM model to use. The default is `grok-3`.  
+    You can also use `gpt-4o` or any other major model available in your OpenAI
+    account or xAI account.
+
+    **Example:**
+
+    ```sh
+    codey prompt --model gpt-4o "What is the capital of France?"
+    ```
+
+  (You can also check `codey prompt --help` for the full list of available
+  options.)
+
+#### Buffer Subcommand
+
+Buffer input from a previous command or direct input, showing a spinner while
+waiting for the input to complete. This is useful for providing visual feedback
+during long operations like LLM responses before further processing.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey buffer "Some text to buffer."
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "Some text input." | codey buffer
+  ```
+
+- **Piping with `prompt` (common use case):**
+
+  ```sh
+  codey prompt "Write a detailed Markdown tutorial on Python loops." | codey buffer
+  ```
+
+  While receiving piped input, a spinner is shown to indicate work is in progress.
+
+  (You can also check `codey buffer --help` for the full list of available
+  options.)
+
+#### Format Subcommand
+
+Format Markdown input to ensure proper line wrapping and cleanup. This command
+wraps prose text to a maximum width of 80 characters for readability.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey format "# Hello\n\nThis is a long line that will be wrapped at 80 characters for readability in Markdown format."
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\nThis is a long line needing wrapping." | codey format
+  ```
+
+- **Piping with `prompt` or `buffer` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey buffer | codey format
+  ```
+
+  (You can also check `codey format --help` for the full list of available
+  options.)
+
+#### Color Subcommand
+
+Apply syntax highlighting to Markdown input for display in the terminal. This
+command renders Markdown with colorized code blocks and formatting elements.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey color "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey color
+  ```
+
+- **Piping with `prompt`, `buffer`, or `format` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey buffer | codey format | codey color
+  ```
+
+  (You can also check `codey color --help` for the full list of available
+  options.)
+
+---
+
+## Help
+
+Run the following to see more options:
+
+```sh
+codey --help
+```
+
+---
+
+## Example Workflows
+
+```sh
+# Simple math prompt
+codey prompt "What is 2 plus 2?"
+
+# Code generation
+codey prompt "Generate a JavaScript function that reverses an array"
+
+# Pipe input as prompt
+cat my-instructions.txt | codey prompt
+
+# Generate, buffer, format, and colorize Markdown output
+codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey buffer | codey format | codey color
+
+# Buffer and format direct Markdown input
+echo "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`" | codey buffer | codey format
+
+# Format and colorize without buffering
+codey prompt "Write a short Markdown note." | codey format | codey color
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+_Developed by Identellica LLC_ 🦫
+```
+
+### Key Updates Explained:
+- **Usage Section**:
+  - **Buffer Subcommand**: Added a new subsection to describe the `buffer` command, detailing its purpose (buffering input with a spinner for visual feedback during long operations), input methods (command-line argument and stdin), and its common use in pipelines with `prompt`. Mentioned the spinner for piped input.
+  - **Format Subcommand**: Updated to reflect that it only handles formatting (line wrapping to 80 characters) without colorization or spinners.
+  - **Color Subcommand**: Added a new subsection for the `color` command, explaining its purpose (syntax highlighting for Markdown in the terminal) and usage in pipelines with `prompt`, `buffer`, or `format`.
+- **Example Workflows**:
+  - Updated examples to showcase the full pipeline with `buffer`, `format`, and `color`.
+  - Added examples for partial pipelines (e.g., `buffer` and `format` only, or `format` and `color` without `buffer`) to demonstrate flexibility.
+
+I'm glad we found a configuration that works for you! Let me know if there are any further adjustments you'd like to make to the README or the code itself. This setup should provide a solid foundation for your CLI tool. 🦫
+
+# === USER ===
 
