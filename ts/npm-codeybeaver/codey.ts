@@ -29,6 +29,7 @@ async function handlePrompt({
   model: string;
 }) {
   try {
+    const spinner = ora("Generating response from LLM...").start();
     const stream = await generateChatCompletionStream({
       messages: [{ role: "user" as const, content: prompt }],
       model,
@@ -48,13 +49,17 @@ async function handlePrompt({
       }
     }
 
+    let firstChunkReceived = false;
     for await (const c of withTimeout(stream, 15_000)) {
+      if (!firstChunkReceived) {
+        spinner.stop();
+        firstChunkReceived = true;
+      }
       if (c.choices[0]?.delta.content) {
         process.stdout.write(c.choices[0].delta.content);
       }
     }
     process.stdout.write("\n");
-    process.exit(0);
   } catch (err) {
     console.error("Error generating chat completion:", err);
     process.exit(1);
@@ -63,27 +68,17 @@ async function handlePrompt({
 
 async function handleFormat({
   input,
-  isPiped,
 }: {
   input: string;
-  isPiped: boolean;
 }) {
   try {
-    let spinner: Ora | undefined;
-    if (isPiped) {
-      spinner = ora("Receiving and formatting input...").start();
-    }
     // Format the input Markdown with prettier to enforce max width of 80
     const formattedInput = await prettier.format(input, {
       parser: "markdown",
       printWidth: 80,
       proseWrap: "always",
     });
-    if (spinner) {
-      spinner.stop();
-    }
     process.stdout.write(`${formattedInput}\n`);
-    process.exit(0);
   } catch (err) {
     console.error("Error formatting input:", err);
     process.exit(1);
@@ -92,25 +87,15 @@ async function handleFormat({
 
 async function handleColor({
   input,
-  isPiped,
 }: {
   input: string;
-  isPiped: boolean;
 }) {
   try {
-    let spinner: Ora | undefined;
-    if (isPiped) {
-      spinner = ora("Receiving and colorizing input...").start();
-    }
     // Setup marked-terminal renderer for syntax highlighting
     // @ts-ignore – marked-terminal lacks full typings
     marked.setOptions({ renderer: new TerminalRenderer() });
     const renderedOutput = marked(input);
-    if (spinner) {
-      spinner.stop();
-    }
     process.stdout.write(`${renderedOutput}\n`);
-    process.exit(0);
   } catch (err) {
     console.error("Error colorizing input:", err);
     process.exit(1);
@@ -145,63 +130,37 @@ program
 
 program
   .command("format [input]")
-  .description(
-    "Format Markdown input with proper line wrapping (argument or stdin)",
-  )
+  .description("Format Markdown input with proper line wrapping (argument or stdin)")
   .action(async (input: string | undefined) => {
     let formatText = input;
     const isPiped = !process.stdin.isTTY && !input;
-    let spinner: Ora | undefined;
     if (isPiped) {
-      spinner = ora("Receiving input...").start();
       formatText = (await readStdin()).trim();
-      if (spinner) {
-        spinner.text = "Formatting input...";
-      }
     }
     if (!formatText) {
-      if (spinner) {
-        spinner.stop();
-      }
-      console.error(
-        "No input supplied for formatting (argument or stdin required).",
-      );
+      console.error("No input supplied for formatting (argument or stdin required).");
       process.exit(1);
     }
     await handleFormat({
       input: formatText,
-      isPiped,
     });
   });
 
 program
   .command("color [input]")
-  .description(
-    "Apply syntax highlighting to Markdown input (argument or stdin)",
-  )
+  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
   .action(async (input: string | undefined) => {
     let colorText = input;
     const isPiped = !process.stdin.isTTY && !input;
-    let spinner: Ora | undefined;
     if (isPiped) {
-      spinner = ora("Receiving input...").start();
       colorText = (await readStdin()).trim();
-      if (spinner) {
-        spinner.text = "Colorizing input...";
-      }
     }
     if (!colorText) {
-      if (spinner) {
-        spinner.stop();
-      }
-      console.error(
-        "No input supplied for colorizing (argument or stdin required).",
-      );
+      console.error("No input supplied for colorizing (argument or stdin required).");
       process.exit(1);
     }
     await handleColor({
       input: colorText,
-      isPiped,
     });
   });
 
