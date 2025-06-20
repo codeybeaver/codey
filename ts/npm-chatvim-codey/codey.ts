@@ -70,7 +70,7 @@ async function handleBuffer({
   try {
     let spinner: Ora | undefined;
     if (isPiped) {
-      spinner = ora("Buffering input...").start();
+      spinner = ora("Generating...").start();
     }
     // Output the input as-is after buffering
     if (spinner) {
