@@ -1,5 +1,7 @@
 # Codey 🦫
 
+<img src="./raw-images/codeybeaver-3.png" width="150" height="150" alt="Codey Beaver">
+
 _Codey is a versatile CLI and Node.js toolkit for leveraging LLMs to help with
 computer programming tasks._
 
