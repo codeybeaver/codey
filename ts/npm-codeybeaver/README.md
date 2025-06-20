@@ -55,34 +55,86 @@ Send a prompt (question, request, etc.) directly to the LLM.
   (You can also check `codey prompt --help` for the full list of available
   options.)
 
-#### Format Subcommand
+#### Buffer Subcommand
 
-Format and highlight Markdown input for display in the terminal. This command
-wraps prose text to a maximum width of 80 characters and applies syntax
-highlighting to code blocks and other Markdown elements.
+Buffer input from a previous command or direct input, showing a spinner while
+waiting for the input to complete. This is useful for providing visual feedback
+during long operations like LLM responses before further processing.
 
 - **Via command-line argument:**
 
   ```sh
-  codey format "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  codey buffer "Some text to buffer."
   ```
 
 - **Via standard input (pipe support):**
 
   ```sh
-  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey format
+  echo "Some text input." | codey buffer
   ```
 
 - **Piping with `prompt` (common use case):**
 
   ```sh
-  codey prompt "Write a Markdown tutorial on Python loops." | codey format
+  codey prompt "Write a detailed Markdown tutorial on Python loops." | codey buffer
   ```
 
   While receiving piped input, a spinner is shown to indicate work is in
   progress.
 
+  (You can also check `codey buffer --help` for the full list of available
+  options.)
+
+#### Format Subcommand
+
+Format Markdown input to ensure proper line wrapping and cleanup. This command
+wraps prose text to a maximum width of 80 characters for readability.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey format "# Hello\n\nThis is a long line that will be wrapped at 80 characters for readability in Markdown format."
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\nThis is a long line needing wrapping." | codey format
+  ```
+
+- **Piping with `prompt` or `buffer` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey buffer | codey format
+  ```
+
   (You can also check `codey format --help` for the full list of available
+  options.)
+
+#### Color Subcommand
+
+Apply syntax highlighting to Markdown input for display in the terminal. This
+command renders Markdown with colorized code blocks and formatting elements.
+
+- **Via command-line argument:**
+
+  ```sh
+  codey color "# Hello\n\n\`\`\`js\nconsole.log('world');\n\`\`\`"
+  ```
+
+- **Via standard input (pipe support):**
+
+  ```sh
+  echo "# My Doc\n\n\`\`\`python\nprint('hi')\n\`\`\`" | codey color
+  ```
+
+- **Piping with `prompt`, `buffer`, or `format` (common use case):**
+
+  ```sh
+  codey prompt "Write a Markdown tutorial on Python loops." | codey buffer | codey format | codey color
+  ```
+
+  (You can also check `codey color --help` for the full list of available
   options.)
 
 ---
@@ -109,11 +161,14 @@ codey prompt "Generate a JavaScript function that reverses an array"
 # Pipe input as prompt
 cat my-instructions.txt | codey prompt
 
-# Generate and format Markdown output
-codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey format
+# Generate, buffer, format, and colorize Markdown output
+codey prompt "Show me a Python bubble sort function with comments in Markdown." | codey buffer | codey format | codey color
 
-# Format direct Markdown input
-codey format "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`"
+# Buffer and format direct Markdown input
+echo "# Quick Note\n\nThis is a short note with a code block:\n\n\`\`\`bash\necho 'Hello, World!'\n\`\`\`" | codey buffer | codey format
+
+# Format and colorize without buffering
+codey prompt "Write a short Markdown note." | codey format | codey color
 ```
 
 ---
