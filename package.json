@@ -1,5 +1,5 @@
 {
-  "name": "@chatvim/codey",
+  "name": "@codeybeaver/codey",
   "version": "0.0.1",
   "description": "LLMs on the command line.",
   "main": "codey.js",
