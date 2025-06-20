@@ -6,9 +6,7 @@ settings:
 
 importers:
 
-  .: {}
-
-  npm-chatvim-codey:
+  .:
     dependencies:
       '@iarna/toml':
         specifier: ^2.2.5
