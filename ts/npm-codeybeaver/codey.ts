@@ -29,7 +29,6 @@ async function handlePrompt({
   model: string;
 }) {
   try {
-    const spinner = ora("Generating response from LLM...").start();
     const stream = await generateChatCompletionStream({
       messages: [{ role: "user" as const, content: prompt }],
       model,
@@ -49,12 +48,7 @@ async function handlePrompt({
       }
     }
 
-    let firstChunkReceived = false;
     for await (const c of withTimeout(stream, 15_000)) {
-      if (!firstChunkReceived) {
-        spinner.stop();
-        firstChunkReceived = true;
-      }
       if (c.choices[0]?.delta.content) {
         process.stdout.write(c.choices[0].delta.content);
       }
@@ -62,6 +56,29 @@ async function handlePrompt({
     process.stdout.write("\n");
   } catch (err) {
     console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+
+async function handleBuffer({
+  input,
+  isPiped,
+}: {
+  input: string;
+  isPiped: boolean;
+}) {
+  try {
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Buffering input...").start();
+    }
+    // Output the input as-is after buffering
+    if (spinner) {
+      spinner.stop();
+    }
+    process.stdout.write(`${input}\n`);
+  } catch (err) {
+    console.error("Error buffering input:", err);
     process.exit(1);
   }
 }
@@ -125,6 +142,31 @@ program
     await handlePrompt({
       prompt: promptText,
       model: opts.model || "grok-3",
+    });
+  });
+
+program
+  .command("buffer [input]")
+  .description("Buffer input and show a spinner while waiting (argument or stdin)")
+  .action(async (input: string | undefined) => {
+    let bufferText = input;
+    const isPiped = !process.stdin.isTTY && !input;
+    let spinner: Ora | undefined;
+    if (isPiped) {
+      spinner = ora("Buffering input...").start();
+      bufferText = await readStdin();
+      if (spinner) {
+        spinner.stop();
+      }
+    }
+    if (!bufferText) {
+      if (spinner) { spinner.stop() };
+      console.error("No input supplied for buffering (argument or stdin required).");
+      process.exit(1);
+    }
+    await handleBuffer({
+      input: bufferText,
+      isPiped,
     });
   });
 
