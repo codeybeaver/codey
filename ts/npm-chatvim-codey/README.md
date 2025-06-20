@@ -10,7 +10,7 @@ computer programming tasks._
 Install globally using npm:
 
 ```sh
-npm install -g codeybeaver
+npm install -g @chatvim/codey
 ```
 
 This provides one global command:
