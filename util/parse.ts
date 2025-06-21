@@ -11,152 +11,115 @@ export const SettingsSchema = z.object({
   model: z.string().default("grok-3"),
 });
 
-export function parseFrontMatter(text: string) {
-  const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
-  if (tomlMatch) {
-    try {
-      return TOML.parse(tomlMatch[1] || "");
-    } catch (e) {
-      console.error("Invalid TOML front matter:", e);
-    }
-  }
-  const yamlMatch = text.match(/^---\n([\s\S]*?)\n---/);
-  if (yamlMatch) {
-    try {
-      return YAML.parse(yamlMatch[1] || "");
-    } catch (e) {
-      console.error("Invalid YAML front matter:", e);
+type ChatRole = "user" | "assistant" | "system";
+type Settings = z.infer<typeof SettingsSchema>;
+
+const FRONT_MATTER_REGEX = {
+  toml: /^\+\+\+\n([\s\S]*?)\n\+\+\+/,
+  yaml: /^---\n([\s\S]*?)\n---/,
+};
+
+function parseFrontMatter(text: string): Record<string, unknown> {
+  for (const [type, regex] of Object.entries(FRONT_MATTER_REGEX)) {
+    const match = text.match(regex);
+    if (match) {
+      try {
+        return type === "toml"
+          ? TOML.parse(match[1] || "")
+          : YAML.parse(match[1] || "");
+      } catch (e) {
+        console.error(`Invalid ${type.toUpperCase()} front matter:`, e);
+      }
     }
   }
   return {};
 }
 
-export function getSettingsFromFrontMatter(text: string) {
+function getSettingsFromFrontMatter(text: string): Settings {
   const frontMatter = parseFrontMatter(text);
-  if (frontMatter && typeof frontMatter === "object") {
-    return SettingsSchema.parse(frontMatter);
-  }
-  return SettingsSchema.parse({});
+  return SettingsSchema.parse(frontMatter);
 }
 
-export function parseTextChatLog(text: string) {
-  // Remove front matter if it exists
-  const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
-  if (tomlMatch) {
-    return text.replace(tomlMatch[0], "").trim();
-  }
-  const yamlMatch = text.match(/^---\n([\s\S]*?)\n---/);
-  if (yamlMatch) {
-    return text.replace(yamlMatch[0], "").trim();
+function stripFrontMatter(text: string): string {
+  for (const regex of Object.values(FRONT_MATTER_REGEX)) {
+    const match = text.match(regex);
+    if (match) {
+      return text.replace(match[0], "").trim();
+    }
   }
   return text;
 }
 
-export function parseChatLog(
-  text: string,
-  settings: {
-    delimiterPrefix: string;
-    delimiterSuffix: string;
-    userDelimiter: string;
-    assistantDelimiter: string;
-    systemDelimiter: string;
-  },
-): { role: "user" | "assistant" | "system"; content: string }[] {
-  const {
-    delimiterPrefix,
-    delimiterSuffix,
-    userDelimiter,
-    assistantDelimiter,
-    systemDelimiter,
-  } = settings;
-
-  const delimiters = [
-    {
-      role: "user",
-      delim: `${delimiterPrefix}${userDelimiter}${delimiterSuffix}`,
-    },
-    {
-      role: "assistant",
-      delim: `${delimiterPrefix}${assistantDelimiter}${delimiterSuffix}`,
-    },
-    {
-      role: "system",
-      delim: `${delimiterPrefix}${systemDelimiter}${delimiterSuffix}`,
-    },
+function buildDelimiterRegex(settings: Settings): RegExp {
+  const roles: { role: ChatRole; delimiter: string }[] = [
+    { role: "user", delimiter: settings.userDelimiter },
+    { role: "assistant", delimiter: settings.assistantDelimiter },
+    { role: "system", delimiter: settings.systemDelimiter },
   ];
-
-  // Build a regex to match any delimiter
-  const delimRegex = new RegExp(
-    `(${delimiters.map((d) => d.delim.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
-    "g",
+  const escapedDelimiters = roles.map(({ delimiter }) =>
+    `${settings.delimiterPrefix}${delimiter}${settings.delimiterSuffix}`.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    ),
   );
+  return new RegExp(`(${escapedDelimiters.join("|")})`, "g");
+}
 
-  // Split text into blocks and delimiters
+function parseChatLog(
+  text: string,
+  settings: Settings,
+): { role: ChatRole; content: string }[] {
+  const delimiterRegex = buildDelimiterRegex(settings);
   const parts = [];
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  const regex = new RegExp(delimRegex, "g");
+  let match = delimiterRegex.exec(text);
 
-  match = regex.exec(text);
-  while (match !== null) {
+  while (match) {
     if (match.index > lastIndex) {
       parts.push({ content: text.slice(lastIndex, match.index), delim: null });
     }
     parts.push({ content: "", delim: match[0] });
-    lastIndex = regex.lastIndex;
-    match = regex.exec(text);
+    lastIndex = delimiterRegex.lastIndex;
+    match = delimiterRegex.exec(text);
   }
-
   if (lastIndex < text.length) {
     parts.push({ content: text.slice(lastIndex), delim: null });
   }
 
-  // Now, walk through parts and assign roles
-  const chatLog: { role: "user" | "assistant" | "system"; content: string }[] =
-    [];
-  let currentRole: "user" | "assistant" | "system" = "user";
+  const chatLog: { role: ChatRole; content: string }[] = [];
+  let currentRole: ChatRole = "user";
   let first = true;
+
   for (let i = 0; i < parts.length; i++) {
     const { content, delim } = parts[i] as {
       content: string;
       delim: string | null;
     };
     if (first) {
-      // If first block is empty or whitespace, and next is a system delimiter, treat as system
+      const nextDelim = parts[i + 1]?.delim;
       if (
         content.trim().length === 0 &&
-        parts[i + 1]?.delim ===
-          `${delimiterPrefix}${systemDelimiter}${delimiterSuffix}`
+        nextDelim ===
+          `${settings.delimiterPrefix}${settings.systemDelimiter}${settings.delimiterSuffix}`
       ) {
         currentRole = "system";
-        first = false;
-        continue;
-      }
-      // Otherwise, first block is user
-      if (content.trim().length > 0) {
-        chatLog.push({ role: "user", content: content });
+      } else if (content.trim().length > 0) {
+        chatLog.push({ role: "user", content });
       }
       first = false;
       continue;
     }
     if (delim) {
-      // Find which role this delimiter is for
-      const found = delimiters.find((d) => d.delim === delim);
-      if (found) {
-        currentRole = found.role as "user" | "assistant" | "system";
+      if (delim.includes(settings.userDelimiter)) {
+        currentRole = "user";
+      } else if (delim.includes(settings.assistantDelimiter)) {
+        currentRole = "assistant";
+      } else if (delim.includes(settings.systemDelimiter)) {
+        currentRole = "system";
       }
-      // Next part (if any) is the content for this role
-      if (
-        parts[i + 1] &&
-        (
-          parts[i + 1] as { content: string; delim: string | null }
-        ).content.trim().length > 0
-      ) {
-        chatLog.push({
-          role: currentRole,
-          content: (parts[i + 1] as { content: string; delim: string | null })
-            .content,
-        });
+      const nextContent = parts[i + 1]?.content;
+      if ((nextContent?.trim().length as number) > 0) {
+        chatLog.push({ role: currentRole, content: nextContent || "" });
       }
     }
   }
@@ -164,17 +127,11 @@ export function parseChatLog(
 }
 
 export function parseChatLogFromText(text: string): {
-  settings: z.infer<typeof SettingsSchema>;
-  messages: { role: "user" | "assistant" | "system"; content: string }[];
+  settings: Settings;
+  messages: { role: ChatRole; content: string }[];
 } {
   const settings = getSettingsFromFrontMatter(text);
-  const chatLogText = parseTextChatLog(text);
-  const messages = parseChatLog(chatLogText, {
-    delimiterPrefix: settings.delimiterPrefix,
-    delimiterSuffix: settings.delimiterSuffix,
-    userDelimiter: settings.userDelimiter,
-    assistantDelimiter: settings.assistantDelimiter,
-    systemDelimiter: settings.systemDelimiter,
-  });
+  const chatLogText = stripFrontMatter(text);
+  const messages = parseChatLog(chatLogText, settings);
   return { settings, messages };
 }
