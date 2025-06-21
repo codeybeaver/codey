@@ -1,6 +1,6 @@
 # Codey 🦫
 
-<video width="200" height="200" controls><source src="https://github.com/user-attachments/assets/585972b7-d960-4c67-824d-2d53ec05020c" type="video/mp4"></video>
+https://github.com/user-attachments/assets/585972b7-d960-4c67-824d-2d53ec05020c
 
 _Codey is a versatile CLI and Node.js toolkit for leveraging LLMs to help with
 computer programming tasks._
