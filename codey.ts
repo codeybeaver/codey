@@ -4,7 +4,7 @@ import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { generateChatCompletionStream } from "./util/ai.js";
-import { parseChatLog } from "./util/markdown.js";
+import { parseChatLog } from "./util/parse.js";
 import prettier from "prettier";
 
 const program = new Command();
