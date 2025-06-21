@@ -4,6 +4,7 @@ import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { generateChatCompletionStream } from "./util/ai.js";
+import { parseChatLog } from "./util/markdown.js";
 import prettier from "prettier";
 
 const program = new Command();
@@ -28,9 +29,17 @@ async function handlePrompt({
   prompt: string;
   model: string;
 }) {
+  const messages = parseChatLog(prompt, {
+    delimiterPrefix: "\n\n",
+    delimiterSuffix: "\n\n",
+    userDelimiter: "# === USER ===",
+    assistantDelimiter: "# === ASSISTANT ===",
+    systemDelimiter: "# === SYSTEM ===",
+  });
   try {
     const stream = await generateChatCompletionStream({
-      messages: [{ role: "user" as const, content: prompt }],
+      // messages: [{ role: "user" as const, content: prompt }],
+      messages,
       model,
     });
 
@@ -147,7 +156,9 @@ program
 
 program
   .command("buffer [input]")
-  .description("Buffer input and show a spinner while waiting (argument or stdin)")
+  .description(
+    "Buffer input and show a spinner while waiting (argument or stdin)",
+  )
   .action(async (input: string | undefined) => {
     let bufferText = input;
     const isPiped = !process.stdin.isTTY && !input;
@@ -160,8 +171,12 @@ program
       }
     }
     if (!bufferText) {
-      if (spinner) { spinner.stop() };
-      console.error("No input supplied for buffering (argument or stdin required).");
+      if (spinner) {
+        spinner.stop();
+      }
+      console.error(
+        "No input supplied for buffering (argument or stdin required).",
+      );
       process.exit(1);
     }
     await handleBuffer({
@@ -172,7 +187,9 @@ program
 
 program
   .command("format [input]")
-  .description("Format Markdown input with proper line wrapping (argument or stdin)")
+  .description(
+    "Format Markdown input with proper line wrapping (argument or stdin)",
+  )
   .action(async (input: string | undefined) => {
     let formatText = input;
     const isPiped = !process.stdin.isTTY && !input;
@@ -180,7 +197,9 @@ program
       formatText = (await readStdin()).trim();
     }
     if (!formatText) {
-      console.error("No input supplied for formatting (argument or stdin required).");
+      console.error(
+        "No input supplied for formatting (argument or stdin required).",
+      );
       process.exit(1);
     }
     await handleFormat({
@@ -190,7 +209,9 @@ program
 
 program
   .command("color [input]")
-  .description("Apply syntax highlighting to Markdown input (argument or stdin)")
+  .description(
+    "Apply syntax highlighting to Markdown input (argument or stdin)",
+  )
   .action(async (input: string | undefined) => {
     let colorText = input;
     const isPiped = !process.stdin.isTTY && !input;
@@ -198,7 +219,9 @@ program
       colorText = (await readStdin()).trim();
     }
     if (!colorText) {
-      console.error("No input supplied for colorizing (argument or stdin required).");
+      console.error(
+        "No input supplied for colorizing (argument or stdin required).",
+      );
       process.exit(1);
     }
     await handleColor({
