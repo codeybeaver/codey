@@ -1,6 +1,7 @@
 {
   "include": ["*.ts", "**/*.ts", "**/*.tsx"],
   "compilerOptions": {
+    "declaration": true,
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "types": ["node"],
     "isolatedModules": true,

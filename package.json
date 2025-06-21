@@ -1,13 +1,12 @@
 {
   "name": "@codeybeaver/codey",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "LLMs on the command line.",
   "main": "codey.js",
   "type": "module",
   "bin": {
     "codey": "./dist/codey.js"
   },
-  "private": false,
   "scripts": {
     "build": "tsc && chmod +x dist/codey.js",
     "prepublishOnly": "pnpm run build",
