@@ -25,9 +25,13 @@ async function readStdin(): Promise<string> {
 async function handlePrompt({
   prompt,
   model,
+  chunk,
+  addDelimiters,
 }: {
   prompt: string;
   model?: string;
+  chunk?: boolean;
+  addDelimiters?: boolean;
 }) {
   const { messages, settings } = parseChatLogFromText(prompt);
   try {
@@ -50,12 +54,45 @@ async function handlePrompt({
       }
     }
 
-    for await (const c of withTimeout(stream, 15_000)) {
-      if (c.choices[0]?.delta.content) {
-        process.stdout.write(c.choices[0].delta.content);
+    if (addDelimiters) {
+      if (chunk) {
+        process.stdout.write(
+          `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}` })}\n`,
+        );
+      } else {
+        process.stdout.write(
+          `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`,
+        );
       }
     }
-    process.stdout.write("\n");
+
+    for await (const c of withTimeout(stream, 15_000)) {
+      if (c.choices[0]?.delta.content) {
+        if (chunk) {
+          process.stdout.write(
+            `${JSON.stringify({ chunk: c.choices[0].delta.content })}\n`,
+          );
+        } else {
+          process.stdout.write(c.choices[0].delta.content);
+        }
+      }
+    }
+
+    if (addDelimiters) {
+      if (chunk) {
+        process.stdout.write(
+          `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}` })}\n`,
+        );
+      } else {
+        process.stdout.write(
+          `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`,
+        );
+      }
+    }
+
+    if (!chunk) {
+      process.stdout.write("\n");
+    }
   } catch (err) {
     console.error("Error generating chat completion:", err);
     process.exit(1);
@@ -132,20 +169,29 @@ program
   .command("prompt [input]")
   .description("Send a prompt to the LLM (argument or stdin)")
   .option("--model <model>", "Model to use", "grok-3")
-  .action(async (input: string | undefined, opts: { model: string }) => {
-    let promptText = input;
-    if (!promptText && !process.stdin.isTTY) {
-      promptText = (await readStdin()).trim();
-    }
-    if (!promptText) {
-      console.error("No prompt supplied (argument or stdin required).");
-      process.exit(1);
-    }
-    await handlePrompt({
-      prompt: promptText,
-      model: opts.model
-    });
-  });
+  .option("--chunk", "Put each chunk in a JSON object on a new line", false)
+  .option("--add-delimiters", "Add delimiters to the response", false)
+  .action(
+    async (
+      input: string | undefined,
+      opts: { model: string; chunk: boolean; addDelimiters: boolean },
+    ) => {
+      let promptText = input;
+      if (!promptText && !process.stdin.isTTY) {
+        promptText = (await readStdin()).trim();
+      }
+      if (!promptText) {
+        console.error("No prompt supplied (argument or stdin required).");
+        process.exit(1);
+      }
+      await handlePrompt({
+        prompt: promptText,
+        model: opts.model,
+        chunk: opts.chunk,
+        addDelimiters: opts.addDelimiters,
+      });
+    },
+  );
 
 program
   .command("buffer [input]")
