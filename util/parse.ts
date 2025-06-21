@@ -1,3 +1,56 @@
+import * as TOML from "@iarna/toml";
+import YAML from "yaml";
+import { z } from "zod";
+
+const SettingsSchema = z.object({
+  delimiterPrefix: z.string().default("\n\n"),
+  delimiterSuffix: z.string().default("\n\n"),
+  userDelimiter: z.string().default("# === USER ==="),
+  assistantDelimiter: z.string().default("# === ASSISTANT ==="),
+  systemDelimiter: z.string().default("# === SYSTEM ==="),
+  model: z.string().default("grok-3"),
+});
+function parseFrontMatter(text: string) {
+  const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
+  if (tomlMatch) {
+    try {
+      return TOML.parse(tomlMatch[1] || "");
+    } catch (e) {
+      console.error("Invalid TOML front matter:", e);
+    }
+  }
+  const yamlMatch = text.match(/^---\n([\s\S]*?)\n---/);
+  if (yamlMatch) {
+    try {
+      return YAML.parse(yamlMatch[1] || "");
+    } catch (e) {
+      console.error("Invalid YAML front matter:", e);
+    }
+  }
+  return {};
+}
+
+export function getSettingsFromFrontMatter(text: string) {
+  const frontMatter = parseFrontMatter(text);
+  if (frontMatter && typeof frontMatter === "object") {
+    return SettingsSchema.parse(frontMatter);
+  }
+  return SettingsSchema.parse({});
+}
+
+export function parseText(text: string) {
+  // Remove front matter if it exists
+  const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
+  if (tomlMatch) {
+    return text.replace(tomlMatch[0], "").trim();
+  }
+  const yamlMatch = text.match(/^---\n([\s\S]*?)\n---/);
+  if (yamlMatch) {
+    return text.replace(yamlMatch[0], "").trim();
+  }
+  return text;
+}
+
 export function parseChatLog(
   text: string,
   settings: {
