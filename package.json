@@ -1,8 +1,9 @@
 {
   "name": "@codeybeaver/codey",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "LLMs on the command line.",
-  "main": "codey.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "type": "module",
   "bin": {
     "codey": "./dist/codey.js"
