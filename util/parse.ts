@@ -2,7 +2,7 @@ import * as TOML from "@iarna/toml";
 import YAML from "yaml";
 import { z } from "zod";
 
-const SettingsSchema = z.object({
+export const SettingsSchema = z.object({
   delimiterPrefix: z.string().default("\n\n"),
   delimiterSuffix: z.string().default("\n\n"),
   userDelimiter: z.string().default("# === USER ==="),
@@ -10,7 +10,8 @@ const SettingsSchema = z.object({
   systemDelimiter: z.string().default("# === SYSTEM ==="),
   model: z.string().default("grok-3"),
 });
-function parseFrontMatter(text: string) {
+
+export function parseFrontMatter(text: string) {
   const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
   if (tomlMatch) {
     try {
@@ -38,7 +39,7 @@ export function getSettingsFromFrontMatter(text: string) {
   return SettingsSchema.parse({});
 }
 
-export function parseText(text: string) {
+export function parseTextChatLog(text: string) {
   // Remove front matter if it exists
   const tomlMatch = text.match(/^\+\+\+\n([\s\S]*?)\n\+\+\+/);
   if (tomlMatch) {
@@ -160,4 +161,20 @@ export function parseChatLog(
     }
   }
   return chatLog;
+}
+
+export function parseChatLogFromText(text: string): {
+  settings: z.infer<typeof SettingsSchema>;
+  messages: { role: "user" | "assistant" | "system"; content: string }[];
+} {
+  const settings = getSettingsFromFrontMatter(text);
+  const chatLogText = parseTextChatLog(text);
+  const messages = parseChatLog(chatLogText, {
+    delimiterPrefix: settings.delimiterPrefix,
+    delimiterSuffix: settings.delimiterSuffix,
+    userDelimiter: settings.userDelimiter,
+    assistantDelimiter: settings.assistantDelimiter,
+    systemDelimiter: settings.systemDelimiter,
+  });
+  return { settings, messages };
 }

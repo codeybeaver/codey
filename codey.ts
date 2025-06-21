@@ -4,7 +4,7 @@ import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { generateChatCompletionStream } from "./util/ai.js";
-import { parseChatLog } from "./util/parse.js";
+import { parseChatLogFromText } from "./util/parse.js";
 import prettier from "prettier";
 
 const program = new Command();
@@ -27,20 +27,13 @@ async function handlePrompt({
   model,
 }: {
   prompt: string;
-  model: string;
+  model?: string;
 }) {
-  const messages = parseChatLog(prompt, {
-    delimiterPrefix: "\n\n",
-    delimiterSuffix: "\n\n",
-    userDelimiter: "# === USER ===",
-    assistantDelimiter: "# === ASSISTANT ===",
-    systemDelimiter: "# === SYSTEM ===",
-  });
+  const { messages, settings } = parseChatLogFromText(prompt);
   try {
     const stream = await generateChatCompletionStream({
-      // messages: [{ role: "user" as const, content: prompt }],
       messages,
-      model,
+      model: model || settings.model,
     });
 
     async function* withTimeout<T>(
@@ -150,7 +143,7 @@ program
     }
     await handlePrompt({
       prompt: promptText,
-      model: opts.model || "grok-3",
+      model: opts.model
     });
   });
 
