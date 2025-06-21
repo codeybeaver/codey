@@ -93,6 +93,7 @@ async function handlePrompt({
     if (!chunk) {
       process.stdout.write("\n");
     }
+    process.exit(0);
   } catch (err) {
     console.error("Error generating chat completion:", err);
     process.exit(1);
