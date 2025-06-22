@@ -19,6 +19,12 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export const ModelsSchema = z
   .enum([
+    // anthropic
+    "claude-3-5-sonnet-latest",
+    "claude-3-7-sonnet-latest",
+    "claude-sonnet-4-0",
+    "claude-opus-4-0",
+
     // x.ai
     "grok-3",
     "grok-3-beta",
