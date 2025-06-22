@@ -80,6 +80,122 @@ function getProvider(model: string): z.infer<typeof ProviderSchema> {
   return provider;
 }
 
+export async function generateChatCompletionAnthropic({
+  messages,
+  model,
+}: {
+  messages: { role: "assistant" | "user" | "system"; content: string }[];
+  model: string;
+}): Promise<AsyncIterable<string>> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY environment variable is not set.");
+  }
+
+  const anthropic = new Anthropic({
+    apiKey,
+  });
+
+  try {
+    const stream = anthropic.messages.stream({
+      model,
+      messages: messages.map((msg) => ({
+        role: msg.role === "assistant" ? "assistant" : "user", // Anthropic only supports 'user' and 'assistant'
+        content: msg.content,
+      })),
+      max_tokens: 4096, // Anthropic requires max_tokens to be set
+    });
+
+    // Transform Anthropic stream into an async iterable of text chunks
+    return {
+      async *[Symbol.asyncIterator]() {
+        const textQueue: string[] = [];
+        let isDone = false;
+        let error: Error | null = null;
+        let pendingResolve: ((value: IteratorResult<string>) => void) | null =
+          null;
+
+        // Listen for 'text' events and queue the text chunks
+        stream.on("text", (text) => {
+          if (text) {
+            textQueue.push(text);
+            if (pendingResolve) {
+              const chunk = textQueue.shift();
+              if (chunk) {
+                pendingResolve({ value: chunk, done: false });
+                pendingResolve = null;
+              }
+            }
+          }
+        });
+
+        // Listen for 'end' event to signal completion
+        stream.on("end", () => {
+          isDone = true;
+          if (pendingResolve) {
+            pendingResolve({ value: "", done: true });
+            pendingResolve = null;
+          }
+        });
+
+        // Handle errors
+        stream.on("error", (err) => {
+          isDone = true;
+          error = err instanceof Error ? err : new Error(String(err));
+          if (pendingResolve) {
+            pendingResolve({ value: "", done: true });
+            pendingResolve = null;
+          }
+        });
+
+        // Async iterator logic to yield text chunks
+        try {
+          while (true) {
+            if (error) {
+              throw error; // Propagate error to the consumer if one occurred
+            }
+            if (textQueue.length > 0) {
+              const chunk = textQueue.shift();
+              if (chunk) {
+                yield chunk;
+              }
+            } else if (isDone) {
+              break; // Exit loop if stream is done and no more chunks
+            } else {
+              // Wait for the next text event or completion
+              const result = await new Promise<IteratorResult<string>>(
+                (resolve) => {
+                  pendingResolve = resolve;
+                  if (isDone) {
+                    resolve({ value: "", done: true });
+                  } else if (textQueue.length > 0) {
+                    const chunk = textQueue.shift();
+                    if (chunk) {
+                      resolve({ value: chunk, done: false });
+                    }
+                  }
+                },
+              );
+              if (result.done) {
+                break;
+              }
+              yield result.value;
+            }
+          }
+        } finally {
+          // Clean up event listeners to prevent memory leaks
+          // stream.off("text");
+          // stream.off("end");
+          // stream.off("error");
+        }
+      },
+    };
+  } catch (error) {
+    console.error("Error generating Anthropic chat completion:", error);
+    throw error;
+  }
+}
+
 export async function generateChatCompletionStream({
   messages,
   model,
@@ -90,164 +206,57 @@ export async function generateChatCompletionStream({
   const provider = getProvider(model);
 
   if (provider === "anthropic") {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    return generateChatCompletionAnthropic({ messages, model });
+  }
+  // Handle OpenAI or XAI
+  let baseURL: string | undefined;
+  let apiKey: string | undefined;
+
+  if (provider === "xai") {
+    apiKey = process.env.XAI_API_KEY;
+    baseURL = "https://api.x.ai/v1";
     if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set.");
+      throw new Error("XAI_API_KEY environment variable is not set.");
     }
-
-    const anthropic = new Anthropic({
-      apiKey,
-    });
-
-    try {
-      const stream = anthropic.messages.stream({
-        model,
-        messages: messages.map((msg) => ({
-          role: msg.role === "assistant" ? "assistant" : "user", // Anthropic only supports 'user' and 'assistant'
-          content: msg.content,
-        })),
-        max_tokens: 4096, // Anthropic requires max_tokens to be set
-      });
-
-      // Transform Anthropic stream into an async iterable of text chunks
-      return {
-        async *[Symbol.asyncIterator]() {
-          const textQueue: string[] = [];
-          let isDone = false;
-          let error: Error | null = null;
-          let pendingResolve: ((value: IteratorResult<string>) => void) | null =
-            null;
-
-          // Listen for 'text' events and queue the text chunks
-          stream.on("text", (text) => {
-            if (text) {
-              textQueue.push(text);
-              if (pendingResolve) {
-                const chunk = textQueue.shift();
-                if (chunk) {
-                  pendingResolve({ value: chunk, done: false });
-                  pendingResolve = null;
-                }
-              }
-            }
-          });
-
-          // Listen for 'end' event to signal completion
-          stream.on("end", () => {
-            isDone = true;
-            if (pendingResolve) {
-              pendingResolve({ value: "", done: true });
-              pendingResolve = null;
-            }
-          });
-
-          // Handle errors
-          stream.on("error", (err) => {
-            isDone = true;
-            error = err instanceof Error ? err : new Error(String(err));
-            if (pendingResolve) {
-              pendingResolve({ value: "", done: true });
-              pendingResolve = null;
-            }
-          });
-
-          // Async iterator logic to yield text chunks
-          try {
-            while (true) {
-              if (error) {
-                throw error; // Propagate error to the consumer if one occurred
-              }
-              if (textQueue.length > 0) {
-                const chunk = textQueue.shift();
-                if (chunk) {
-                  yield chunk;
-                }
-              } else if (isDone) {
-                break; // Exit loop if stream is done and no more chunks
-              } else {
-                // Wait for the next text event or completion
-                const result = await new Promise<IteratorResult<string>>(
-                  (resolve) => {
-                    pendingResolve = resolve;
-                    if (isDone) {
-                      resolve({ value: "", done: true });
-                    } else if (textQueue.length > 0) {
-                      const chunk = textQueue.shift();
-                      if (chunk) {
-                        resolve({ value: chunk, done: false });
-                      }
-                    }
-                  },
-                );
-                if (result.done) {
-                  break;
-                }
-                yield result.value;
-              }
-            }
-          } finally {
-            // Clean up event listeners to prevent memory leaks
-            // stream.off("text");
-            // stream.off("end");
-            // stream.off("error");
-          }
-        },
-      };
-    } catch (error) {
-      console.error("Error generating Anthropic chat completion:", error);
-      throw error;
+  } else if (provider === "openai") {
+    apiKey = process.env.OPENAI_API_KEY;
+    baseURL = undefined; // Use default OpenAI base URL
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable is not set.");
     }
   } else {
-    // Handle OpenAI or XAI
-    let baseURL: string | undefined;
-    let apiKey: string | undefined;
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
 
-    if (provider === "xai") {
-      apiKey = process.env.XAI_API_KEY;
-      baseURL = "https://api.x.ai/v1";
-      if (!apiKey) {
-        throw new Error("XAI_API_KEY environment variable is not set.");
-      }
-    } else if (provider === "openai") {
-      apiKey = process.env.OPENAI_API_KEY;
-      baseURL = undefined; // Use default OpenAI base URL
-      if (!apiKey) {
-        throw new Error("OPENAI_API_KEY environment variable is not set.");
-      }
-    } else {
-      throw new Error(`Unsupported provider: ${provider}`);
-    }
+  const aiApi = new OpenAI({
+    apiKey,
+    baseURL,
+  });
 
-    const aiApi = new OpenAI({
-      apiKey,
-      baseURL,
-    });
+  try {
+    const stream = await withTimeout(
+      aiApi.chat.completions.create({
+        model,
+        messages,
+        max_tokens: undefined,
+        stream: true,
+      }),
+      30_000, // 30 seconds timeout
+    );
 
-    try {
-      const stream = await withTimeout(
-        aiApi.chat.completions.create({
-          model,
-          messages,
-          max_tokens: undefined,
-          stream: true,
-        }),
-        30_000, // 30 seconds timeout
-      );
-
-      // Transform OpenAI/XAI stream into an async iterable of text chunks
-      return {
-        async *[Symbol.asyncIterator]() {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content || "";
-            if (text) {
-              yield text;
-            }
+    // Transform OpenAI/XAI stream into an async iterable of text chunks
+    return {
+      async *[Symbol.asyncIterator]() {
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content || "";
+          if (text) {
+            yield text;
           }
-        },
-      };
-    } catch (error) {
-      console.error("Error generating chat completion:", error);
-      throw error;
-    }
+        }
+      },
+    };
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    throw error;
   }
 }
