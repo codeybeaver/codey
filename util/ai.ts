@@ -27,7 +27,6 @@ export const ModelsSchema = z
 
     // x.ai
     "grok-3",
-    "grok-3-beta",
 
     // openai
     "gpt-4.1",
@@ -57,7 +56,6 @@ const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
 
   // xai models
   "grok-3": "xai",
-  "grok-3-beta": "xai",
 
   // openai models
   "gpt-4.1": "openai",
