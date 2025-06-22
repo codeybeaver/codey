@@ -2,7 +2,7 @@ import { Command } from "commander";
 import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
-import { models, generateChatCompletionStream } from "./util/ai.js";
+import { models, providers, generateChatCompletionStream } from "./util/ai.js";
 import { parseChatLogFromText } from "./util/parse.js";
 import prettier from "prettier";
 
@@ -199,6 +199,15 @@ program
   .action(() => {
     for (const model of models) {
       console.log(`- ${model}`);
+    }
+  });
+
+program
+  .command("providers")
+  .description("List available providers")
+  .action(() => {
+    for (const provider of providers) {
+      console.log(`- ${provider}`);
     }
   });
 

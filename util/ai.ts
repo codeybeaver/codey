@@ -68,6 +68,12 @@ export const models: z.infer<typeof ModelsSchema>[] = [
   "grok-3",
 ];
 
+export const providers: z.infer<typeof ProviderSchema>[] = [
+  "anthropic",
+  "openai",
+  "xai",
+];
+
 export const ProviderSchema = z
   .enum(["anthropic", "openai", "xai"])
   .default("xai");
