@@ -102,6 +102,12 @@ export async function generateChatCompletionStream({
     if (!apiKey) {
       throw new Error("XAI_API_KEY environment variable is not set.");
     }
+  } else if (provider === "anthropic") {
+    apiKey = process.env.ANTHROPIC_API_KEY;
+    baseURL = "https://api.anthropic.com/v1";
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY environment variable is not set.");
+    }
   } else if (provider === "openai") {
     apiKey = process.env.OPENAI_API_KEY;
     // baseURL = "https://api.openai.com/v1";
