@@ -291,7 +291,7 @@ program
 
 program
   .command("beaver")
-  .description("Codey Beaver mascot")
+  .description("Meet Codey Beaver")
   .action(() => {
     console.log(`
                            .-++*******++-.                                      
@@ -313,6 +313,10 @@ program
      -+*******++=--=+*#%%@@%%%%#########*+===--::=%#**##*=::.                   
    :++****++++-..        ..:==+++++++=+==:         ..::..                       
     .::::..                                                                     
+
+"Hey there! I'm Codey Beaver, the hardest-working coder in the dam! I chew
+through bugs and build robust code structures. Let's gnaw on some problems
+together!"
     `);
   });
 
