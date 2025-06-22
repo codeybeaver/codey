@@ -44,6 +44,30 @@ export const ModelsSchema = z
   ])
   .default("grok-3");
 
+export const models: z.infer<typeof ModelsSchema>[] = [
+  // anthropic models
+  "claude-3-5-sonnet-latest",
+  "claude-3-7-sonnet-latest",
+  "claude-sonnet-4-0",
+  "claude-opus-4-0",
+
+  // openai models
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-4o-mini-search-preview",
+  "gpt-4o-search-preview",
+
+  // x.ai models
+  "o1",
+  "o1-mini",
+  "o3",
+  "o3-mini",
+  "grok-3",
+];
+
 export const ProviderSchema = z
   .enum(["anthropic", "openai", "xai"])
   .default("xai");

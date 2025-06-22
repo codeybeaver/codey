@@ -2,7 +2,7 @@ import { Command } from "commander";
 import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
-import { generateChatCompletionStream } from "./util/ai.js";
+import { models, generateChatCompletionStream } from "./util/ai.js";
 import { parseChatLogFromText } from "./util/parse.js";
 import prettier from "prettier";
 
@@ -192,6 +192,15 @@ program
       });
     },
   );
+
+program
+  .command("models")
+  .description("List available models")
+  .action(() => {
+    for (const model of models) {
+      console.log(`- ${model}`);
+    }
+  });
 
 program
   .command("buffer [input]")
