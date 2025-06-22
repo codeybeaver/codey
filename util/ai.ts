@@ -44,11 +44,22 @@ export const ModelsSchema = z
   ])
   .default("grok-3");
 
-export const ProviderSchema = z.enum(["xai", "openai"]).default("xai");
+export const ProviderSchema = z
+  .enum(["anthropic", "xai", "openai"])
+  .default("xai");
 
 const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
+  // anthropic models
+  "claude-3-5-sonnet-latest": "anthropic",
+  "claude-3-7-sonnet-latest": "anthropic",
+  "claude-sonnet-4-0": "anthropic",
+  "claude-opus-4-0": "anthropic",
+
+  // xai models
   "grok-3": "xai",
   "grok-3-beta": "xai",
+
+  // openai models
   "gpt-4.1": "openai",
   "gpt-4.1-mini": "openai",
   "gpt-4.1-nano": "openai",
