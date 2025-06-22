@@ -196,6 +196,52 @@ export async function generateChatCompletionAnthropic({
   }
 }
 
+export async function generateChatCompletionXAI({
+  messages,
+  model,
+}: {
+  messages: { role: "assistant" | "user" | "system"; content: string }[];
+  model: string;
+}): Promise<AsyncIterable<string>> {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("XAI_API_KEY environment variable is not set.");
+  }
+
+  const baseURL = "https://api.x.ai/v1";
+  const aiApi = new OpenAI({
+    apiKey,
+    baseURL,
+  });
+
+  try {
+    const stream = await withTimeout(
+      aiApi.chat.completions.create({
+        model,
+        messages,
+        max_tokens: undefined,
+        stream: true,
+      }),
+      30_000, // 30 seconds timeout
+    );
+
+    // Transform XAI stream into an async iterable of text chunks
+    return {
+      async *[Symbol.asyncIterator]() {
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content || "";
+          if (text) {
+            yield text;
+          }
+        }
+      },
+    };
+  } catch (error) {
+    console.error("Error generating XAI chat completion:", error);
+    throw error;
+  }
+}
+
 export async function generateChatCompletionStream({
   messages,
   model,
@@ -208,17 +254,14 @@ export async function generateChatCompletionStream({
   if (provider === "anthropic") {
     return generateChatCompletionAnthropic({ messages, model });
   }
+  if (provider === "xai") {
+    return generateChatCompletionXAI({ messages, model });
+  }
   // Handle OpenAI or XAI
   let baseURL: string | undefined;
   let apiKey: string | undefined;
 
-  if (provider === "xai") {
-    apiKey = process.env.XAI_API_KEY;
-    baseURL = "https://api.x.ai/v1";
-    if (!apiKey) {
-      throw new Error("XAI_API_KEY environment variable is not set.");
-    }
-  } else if (provider === "openai") {
+  if (provider === "openai") {
     apiKey = process.env.OPENAI_API_KEY;
     baseURL = undefined; // Use default OpenAI base URL
     if (!apiKey) {
