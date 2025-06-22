@@ -149,44 +149,37 @@ export async function generateChatCompletionAnthropic({
         });
 
         // Async iterator logic to yield text chunks
-        try {
-          while (true) {
-            if (error) {
-              throw error; // Propagate error to the consumer if one occurred
-            }
-            if (textQueue.length > 0) {
-              const chunk = textQueue.shift();
-              if (chunk) {
-                yield chunk;
-              }
-            } else if (isDone) {
-              break; // Exit loop if stream is done and no more chunks
-            } else {
-              // Wait for the next text event or completion
-              const result = await new Promise<IteratorResult<string>>(
-                (resolve) => {
-                  pendingResolve = resolve;
-                  if (isDone) {
-                    resolve({ value: "", done: true });
-                  } else if (textQueue.length > 0) {
-                    const chunk = textQueue.shift();
-                    if (chunk) {
-                      resolve({ value: chunk, done: false });
-                    }
-                  }
-                },
-              );
-              if (result.done) {
-                break;
-              }
-              yield result.value;
-            }
+        while (true) {
+          if (error) {
+            throw error; // Propagate error to the consumer if one occurred
           }
-        } finally {
-          // Clean up event listeners to prevent memory leaks
-          // stream.off("text");
-          // stream.off("end");
-          // stream.off("error");
+          if (textQueue.length > 0) {
+            const chunk = textQueue.shift();
+            if (chunk) {
+              yield chunk;
+            }
+          } else if (isDone) {
+            break; // Exit loop if stream is done and no more chunks
+          } else {
+            // Wait for the next text event or completion
+            const result = await new Promise<IteratorResult<string>>(
+              (resolve) => {
+                pendingResolve = resolve;
+                if (isDone) {
+                  resolve({ value: "", done: true });
+                } else if (textQueue.length > 0) {
+                  const chunk = textQueue.shift();
+                  if (chunk) {
+                    resolve({ value: chunk, done: false });
+                  }
+                }
+              },
+            );
+            if (result.done) {
+              break;
+            }
+            yield result.value;
+          }
         }
       },
     };
