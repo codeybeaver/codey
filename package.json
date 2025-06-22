@@ -8,6 +8,10 @@
   "bin": {
     "codey": "./dist/codey.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codeybeaver/codey.git"
+  },
   "scripts": {
     "build": "tsc && chmod +x dist/codey.js",
     "prepublishOnly": "pnpm run build",
