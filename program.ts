@@ -68,7 +68,6 @@ async function handlePrompt({
     for await (const textChunk of withTimeout(stream, 15_000)) {
       if (textChunk) {
         // Replace 'chunk' with your desired flag or variable
-        const chunk = false; // or true if you want JSON output
         if (chunk) {
           process.stdout.write(`${JSON.stringify({ chunk: textChunk })}\n`);
         } else {

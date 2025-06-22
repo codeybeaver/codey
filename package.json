@@ -1,6 +1,6 @@
 {
   "name": "@codeybeaver/codey",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LLMs on the command line.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
