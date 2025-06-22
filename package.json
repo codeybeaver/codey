@@ -24,6 +24,7 @@
     "openai": "^5.5.1"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.54.0",
     "@iarna/toml": "^2.2.5",
     "@types/marked-terminal": "^6.1.1",
     "commander": "^14.0.0",
