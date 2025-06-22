@@ -1,5 +1,6 @@
 import z from "zod/v4";
 import { OpenAI } from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -79,7 +80,6 @@ function getProvider(model: string): z.infer<typeof ProviderSchema> {
   return provider;
 }
 
-// Update the generateChatCompletionStream function to handle multiple providers
 export async function generateChatCompletionStream({
   messages,
   model,

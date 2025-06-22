@@ -373,4 +373,65 @@ If you already have a `tsconfig.json` file, please share it, and I can help tail
 
 # === USER ===
 
+the anthropic api seems to be different than openai and xai. xai supports the openai api, but anthropic gives me an error. how can i install the anthropic api and use it in this function? the purpose of this function is to stream the output of the LLM.
 
+```typescript
+export async function generateChatCompletionStream({
+  messages,
+  model,
+}: {
+  messages: { role: "assistant" | "user" | "system"; content: string }[];
+  model: string;
+}) {
+  let aiApi: OpenAI;
+  let baseURL: string | undefined;
+  let apiKey: string | undefined;
+
+  // Determine the provider based on the model
+  const provider = getProvider(model);
+
+  if (provider === "xai") {
+    apiKey = process.env.XAI_API_KEY;
+    baseURL = "https://api.x.ai/v1";
+    if (!apiKey) {
+      throw new Error("XAI_API_KEY environment variable is not set.");
+    }
+  } else if (provider === "anthropic") {
+    apiKey = process.env.ANTHROPIC_API_KEY;
+    baseURL = "https://api.anthropic.com/v1";
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY environment variable is not set.");
+    }
+  } else if (provider === "openai") {
+    apiKey = process.env.OPENAI_API_KEY;
+    // baseURL = "https://api.openai.com/v1";
+    baseURL = undefined; // Use default OpenAI base URL
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable is not set.");
+    }
+  } else {
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+
+  aiApi = new OpenAI({
+    apiKey,
+    baseURL,
+  });
+
+  try {
+    const stream = await withTimeout(
+      aiApi.chat.completions.create({
+        model,
+        messages,
+        max_tokens: undefined,
+        stream: true,
+      }),
+      30_000, // 30 seconds timeout
+    );
+    return stream;
+  } catch (error) {
+    console.error("Error generating chat completion:", error);
+    throw error;
+  }
+}
+```
