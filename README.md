@@ -7,6 +7,22 @@ computer programming tasks._
 
 ---
 
+## Basic Idea
+
+The basic idea of Codey is to put LLMs on the command line, like this:
+
+```sh
+codey prompt "What is 1 + 1?"
+```
+
+Output
+
+```sh
+1 + 1 is 2.
+```
+
+Read on for more details.
+
 ## Installation
 
 Install globally using npm:
