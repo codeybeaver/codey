@@ -25,9 +25,6 @@ export const ModelsSchema = z
     "claude-sonnet-4-0",
     "claude-opus-4-0",
 
-    // x.ai
-    "grok-3",
-
     // openai
     "gpt-4.1",
     "gpt-4.1-mini",
@@ -40,11 +37,14 @@ export const ModelsSchema = z
     "o1-mini",
     "o3",
     "o3-mini",
+
+    // x.ai
+    "grok-3",
   ])
   .default("grok-3");
 
 export const ProviderSchema = z
-  .enum(["anthropic", "xai", "openai"])
+  .enum(["anthropic", "openai", "xai"])
   .default("xai");
 
 const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
@@ -53,9 +53,6 @@ const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
   "claude-3-7-sonnet-latest": "anthropic",
   "claude-sonnet-4-0": "anthropic",
   "claude-opus-4-0": "anthropic",
-
-  // xai models
-  "grok-3": "xai",
 
   // openai models
   "gpt-4.1": "openai",
@@ -69,6 +66,9 @@ const ModelToProviderMap: Record<string, z.infer<typeof ProviderSchema>> = {
   "o1-mini": "openai",
   o3: "openai",
   "o3-mini": "openai",
+
+  // xai models
+  "grok-3": "xai",
 };
 
 function getProvider(model: string): z.infer<typeof ProviderSchema> {
