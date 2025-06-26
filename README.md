@@ -39,6 +39,16 @@ This provides one global command:
 
 ## Usage
 
+### API Keys
+
+You MUST first set at least one API key for an LLM provider.
+
+```sh
+export OPENAI_API_KEY=your_openai_api_key
+export ANTHROPIC_API_KEY=your_anthropic_api_key
+export XAI_API_KEY=your_xai_api_key
+```
+
 ### Help
 
 For full usage instructions, run:
