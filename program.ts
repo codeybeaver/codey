@@ -2,8 +2,9 @@ import { Command } from "commander";
 import { handleBuffer } from "./commands/buffer.js";
 import { handleColor } from "./commands/color.js";
 import { handleFormat } from "./commands/format.js";
+import { handleModels } from "./commands/models.js"
 import { handlePrompt } from "./commands/prompt.js";
-import { models, providers } from "./util/ai.js";
+import { providers } from "./util/ai.js";
 
 const program = new Command();
 
@@ -27,11 +28,7 @@ program
 program
   .command("models")
   .description("List available models")
-  .action(() => {
-    for (const model of models) {
-      console.log(`- ${model}`);
-    }
-  });
+  .action(handleModels);
 
 program
   .command("providers")
