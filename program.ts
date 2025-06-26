@@ -1,10 +1,10 @@
 import { Command } from "commander";
-import ora, { Ora } from "ora";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
-import { models, providers, generateChatCompletionStream } from "./util/ai.js";
-import { parseChatLogFromText } from "./util/parse.js";
+import ora, { Ora } from "ora";
 import prettier from "prettier";
+import { handlePrompt } from "./commands/prompt.js";
+import { models, providers } from "./util/ai.js";
 
 const program = new Command();
 
@@ -21,82 +21,6 @@ async function readStdin(): Promise<string> {
   });
 }
 
-async function handlePrompt({
-  prompt,
-  model,
-  chunk,
-  addDelimiters,
-}: {
-  prompt: string;
-  model?: string;
-  chunk?: boolean;
-  addDelimiters?: boolean;
-}) {
-  const { messages, settings } = parseChatLogFromText(prompt);
-  try {
-    const stream = await generateChatCompletionStream({
-      messages,
-      model: model || settings.model,
-    });
-
-    async function* withTimeout<T>(
-      src: AsyncIterable<T>,
-      ms: number,
-    ): AsyncIterable<T> {
-      for await (const chunk of src) {
-        yield await Promise.race([
-          Promise.resolve(chunk),
-          new Promise<T>((_, rej) =>
-            setTimeout(() => rej(new Error("Chunk timeout")), ms),
-          ),
-        ]);
-      }
-    }
-
-    if (addDelimiters) {
-      if (chunk) {
-        process.stdout.write(
-          `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}` })}\n`,
-        );
-      } else {
-        process.stdout.write(
-          `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`,
-        );
-      }
-    }
-
-    for await (const textChunk of withTimeout(stream, 15_000)) {
-      if (textChunk) {
-        // Replace 'chunk' with your desired flag or variable
-        if (chunk) {
-          process.stdout.write(`${JSON.stringify({ chunk: textChunk })}\n`);
-        } else {
-          process.stdout.write(textChunk);
-        }
-      }
-    }
-
-    if (addDelimiters) {
-      if (chunk) {
-        process.stdout.write(
-          `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}` })}\n`,
-        );
-      } else {
-        process.stdout.write(
-          `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`,
-        );
-      }
-    }
-
-    if (!chunk) {
-      process.stdout.write("\n");
-    }
-    process.exit(0);
-  } catch (err) {
-    console.error("Error generating chat completion:", err);
-    process.exit(1);
-  }
-}
 
 async function handleBuffer({
   input,
