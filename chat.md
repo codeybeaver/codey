@@ -193,4 +193,14 @@ If this still doesn't look like a beaver to you, or if you'd like specific adjus
 
 # === USER ===
 
+using commander in node.js, how do i make sure my option is required?
 
+```typescript
+program
+  .command("chat")
+  .argument(
+    "[input]",
+    "Prompt text to send to the LLM (optional; can be piped)",
+  )
+  .option("--file [file]", "Markdown file to use as context (required)")
+```
