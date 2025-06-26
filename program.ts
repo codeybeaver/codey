@@ -25,23 +25,28 @@ program
   .option("--add-delimiters", "Add delimiters to the response", false)
   .action(handlePrompt);
 
-// program
-//   .command("chat")
-//   .argument(
-//     "[input]",
-//     "Prompt text to send to the LLM (optional; can be piped)",
-//   )
-//   .requiredOption("--file <file>", "Markdown file to use as context (required)")
-//   .action((input: string, opts: { file: string }) => {
-//     const { file } = opts;
-//     if (!file) {
-//       console.error("The --file option is required for the chat command.");
-//       process.exit(1);
-//     }
-//     console.log(
-//       `Chat command received with input: ${input || "none"} and file: ${file}`,
-//     );
-//   });
+program
+  .command("log")
+  .description("Log a prompt and response to the chat history")
+  .argument(
+    "[input]",
+    "Prompt text to send to the LLM (optional; can be piped)",
+  )
+  .option(
+    "--file <file>",
+    "Markdown file to use as context (optional)",
+    "codey.md",
+  )
+  .action((input: string, opts: { file: string }) => {
+    const { file } = opts;
+    if (!file) {
+      console.error("The --file option is required for the chat command.");
+      process.exit(1);
+    }
+    console.log(
+      `Chat command received with input: ${input || "none"} and file: ${file}`,
+    );
+  });
 
 program
   .command("models")

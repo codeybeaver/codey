@@ -1,4 +1,5 @@
 import { generateChatCompletionStream } from "../util/ai.js";
+import { withTimeout } from "../util/async.js";
 import { parseChatLogFromText } from "../util/parse.js";
 import { readStdin } from "../util/stdin.js";
 
@@ -24,20 +25,6 @@ export async function handlePrompt(
       messages,
       model: opts.model || settings.model,
     });
-
-    async function* withTimeout<T>(
-      src: AsyncIterable<T>,
-      ms: number,
-    ): AsyncIterable<T> {
-      for await (const chunk of src) {
-        yield await Promise.race([
-          Promise.resolve(chunk),
-          new Promise<T>((_, rej) =>
-            setTimeout(() => rej(new Error("Chunk timeout")), ms),
-          ),
-        ]);
-      }
-    }
 
     if (opts.addDelimiters) {
       if (opts.chunk) {
