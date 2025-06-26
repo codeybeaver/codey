@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
-import prettier from "prettier";
 import { handleBuffer } from "./commands/buffer.js";
+import { handleFormat } from "./commands/format.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { models, providers } from "./util/ai.js";
 import { readStdin } from "./util/stdin.js";
@@ -10,21 +10,6 @@ import { readStdin } from "./util/stdin.js";
 const program = new Command();
 
 /* ───────────────────────────────────────────────────── Helpers ──────────── */
-
-async function handleFormat({ input }: { input: string }) {
-  try {
-    // Format the input Markdown with prettier to enforce max width of 80
-    const formattedInput = await prettier.format(input, {
-      parser: "markdown",
-      printWidth: 80,
-      proseWrap: "always",
-    });
-    process.stdout.write(`${formattedInput}\n`);
-  } catch (err) {
-    console.error("Error formatting input:", err);
-    process.exit(1);
-  }
-}
 
 async function handleColor({ input }: { input: string }) {
   try {
@@ -111,20 +96,7 @@ program
     "Format Markdown input with proper line wrapping (argument or stdin)",
   )
   .action(async (input: string | undefined) => {
-    let formatText = input;
-    const isPiped = !process.stdin.isTTY && !input;
-    if (isPiped) {
-      formatText = (await readStdin()).trim();
-    }
-    if (!formatText) {
-      console.error(
-        "No input supplied for formatting (argument or stdin required).",
-      );
-      process.exit(1);
-    }
-    await handleFormat({
-      input: formatText,
-    });
+    await handleFormat({ input });
   });
 
 program
