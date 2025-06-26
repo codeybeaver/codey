@@ -59,7 +59,7 @@ program
   .action(
     async (
       input: string | undefined,
-      opts: { model: string; chunk: boolean; addDelimiters: boolean },
+      opts: { model?: string; chunk?: boolean; addDelimiters?: boolean },
     ) => {
       let promptText = input;
       if (!promptText && !process.stdin.isTTY) {
