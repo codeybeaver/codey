@@ -1,7 +1,7 @@
 import ora, { Ora } from "ora";
 import { readStdin } from "../util/stdin.js";
 
-export async function handleBuffer({ input }: { input?: string }) {
+export async function handleBuffer(input: string) {
   let bufferText = input;
   const isPiped = !process.stdin.isTTY && !input;
   let spinner: Ora | undefined;

@@ -40,9 +40,7 @@ program
   .description(
     "Buffer input and show a spinner while waiting (argument or stdin)",
   )
-  .action(async (input: string | undefined) => {
-    await handleBuffer({ input });
-  });
+  .action(handleBuffer);
 
 program
   .command("format [input]")
