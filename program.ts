@@ -5,6 +5,7 @@ import { handleFormat } from "./commands/format.js";
 import { handleModels } from "./commands/models.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { handleProviders } from "./commands/providers.js";
+import { handleSave } from "./commands/save.js";
 
 const program = new Command();
 
@@ -26,8 +27,8 @@ program
   .action(handlePrompt);
 
 program
-  .command("log")
-  .description("Log a prompt and response to the chat history")
+  .command("save")
+  .description("Save a prompt and response to the chat history")
   .argument(
     "[input]",
     "Prompt text to send to the LLM (optional; can be piped)",
@@ -37,16 +38,7 @@ program
     "Markdown file to use as context (optional)",
     "codey.md",
   )
-  .action((input: string, opts: { file: string }) => {
-    const { file } = opts;
-    if (!file) {
-      console.error("The --file option is required for the chat command.");
-      process.exit(1);
-    }
-    console.log(
-      `Chat command received with input: ${input || "none"} and file: ${file}`,
-    );
-  });
+  .action(handleSave);
 
 program
   .command("models")
