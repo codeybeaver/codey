@@ -4,7 +4,6 @@ import { handleColor } from "./commands/color.js";
 import { handleFormat } from "./commands/format.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { models, providers } from "./util/ai.js";
-import { readStdin } from "./util/stdin.js";
 
 const program = new Command();
 
@@ -28,19 +27,9 @@ program
       input: string | undefined,
       opts: { model?: string; chunk?: boolean; addDelimiters?: boolean },
     ) => {
-      let promptText = input;
-      if (!promptText && !process.stdin.isTTY) {
-        promptText = (await readStdin()).trim();
-      }
-      if (!promptText) {
-        console.error("No prompt supplied (argument or stdin required).");
-        process.exit(1);
-      }
       await handlePrompt({
-        prompt: promptText,
-        model: opts.model,
-        chunk: opts.chunk,
-        addDelimiters: opts.addDelimiters,
+        prompt: input,
+        opts,
       });
     },
   );

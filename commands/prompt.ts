@@ -1,18 +1,27 @@
 import { generateChatCompletionStream } from "../util/ai.js";
 import { parseChatLogFromText } from "../util/parse.js";
+import { readStdin } from "../util/stdin.js";
 
 export async function handlePrompt({
   prompt,
-  model,
-  chunk,
-  addDelimiters,
+  opts: { model, chunk, addDelimiters },
 }: {
-  prompt: string;
-  model?: string;
-  chunk?: boolean;
-  addDelimiters?: boolean;
+  prompt?: string;
+  opts: {
+    model?: string;
+    chunk?: boolean;
+    addDelimiters?: boolean;
+  };
 }) {
-  const { messages, settings } = parseChatLogFromText(prompt);
+  let promptText = prompt;
+  if (!promptText && !process.stdin.isTTY) {
+    promptText = (await readStdin()).trim();
+  }
+  if (!promptText) {
+    console.error("No prompt supplied (argument or stdin required).");
+    process.exit(1);
+  }
+  const { messages, settings } = parseChatLogFromText(promptText);
   try {
     const stream = await generateChatCompletionStream({
       messages,
