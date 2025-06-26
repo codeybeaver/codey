@@ -1,55 +1,17 @@
 import { Command } from "commander";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
-import ora, { Ora } from "ora";
 import prettier from "prettier";
+import { handleBuffer } from "./commands/buffer.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { models, providers } from "./util/ai.js";
+import { readStdin } from "./util/stdin.js";
 
 const program = new Command();
 
 /* ───────────────────────────────────────────────────── Helpers ──────────── */
 
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  return new Promise((resolve, reject) => {
-    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
-    process.stdin.on("end", () =>
-      resolve(Buffer.concat(chunks).toString("utf8").trim()),
-    );
-    process.stdin.on("error", reject);
-  });
-}
-
-
-async function handleBuffer({
-  input,
-  isPiped,
-}: {
-  input: string;
-  isPiped: boolean;
-}) {
-  try {
-    let spinner: Ora | undefined;
-    if (isPiped) {
-      spinner = ora("Generating...").start();
-    }
-    // Output the input as-is after buffering
-    if (spinner) {
-      spinner.stop();
-    }
-    process.stdout.write(`${input}\n`);
-  } catch (err) {
-    console.error("Error buffering input:", err);
-    process.exit(1);
-  }
-}
-
-async function handleFormat({
-  input,
-}: {
-  input: string;
-}) {
+async function handleFormat({ input }: { input: string }) {
   try {
     // Format the input Markdown with prettier to enforce max width of 80
     const formattedInput = await prettier.format(input, {
@@ -64,11 +26,7 @@ async function handleFormat({
   }
 }
 
-async function handleColor({
-  input,
-}: {
-  input: string;
-}) {
+async function handleColor({ input }: { input: string }) {
   try {
     // Setup marked-terminal renderer for syntax highlighting
     // @ts-ignore – marked-terminal lacks full typings
@@ -144,29 +102,7 @@ program
     "Buffer input and show a spinner while waiting (argument or stdin)",
   )
   .action(async (input: string | undefined) => {
-    let bufferText = input;
-    const isPiped = !process.stdin.isTTY && !input;
-    let spinner: Ora | undefined;
-    if (isPiped) {
-      spinner = ora("Buffering input...").start();
-      bufferText = await readStdin();
-      if (spinner) {
-        spinner.stop();
-      }
-    }
-    if (!bufferText) {
-      if (spinner) {
-        spinner.stop();
-      }
-      console.error(
-        "No input supplied for buffering (argument or stdin required).",
-      );
-      process.exit(1);
-    }
-    await handleBuffer({
-      input: bufferText,
-      isPiped,
-    });
+    await handleBuffer({ input });
   });
 
 program
