@@ -44,7 +44,7 @@ async function handleColor({ input }: { input: string }) {
 program
   .name("codey")
   .description("Codey Beaver CLI – LLM-powered coding assistant")
-  .version("0.1.0");
+  .version("0.1.1");
 
 program
   .command("prompt")

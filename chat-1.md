@@ -6769,7 +6769,6 @@ MIT
 ---
 
 _Developed by Identellica LLC_ 🦫
-```
 
 ### Key Updates Explained:
 - **Usage Section**:
@@ -6783,4 +6782,153 @@ _Developed by Identellica LLC_ 🦫
 I'm glad we found a configuration that works for you! Let me know if there are any further adjustments you'd like to make to the README or the code itself. This setup should provide a solid foundation for your CLI tool. 🦫
 
 # === USER ===
+
+i need your help to change the way i'm building my app. currently, i am using tsc. however, i'd like to start importing other file types like .json (in particular, i want to import the package.json file), and i want to switch to using vite for this. in the future, i will also impot other unusual files, such as .md files, and i know vite supports that.
+
+how can i switch from tsc to vite? can i simply install vite as a developer dependency and then change my build script? can i keep the tsconfig the same? please give me brief instructions.
+
+# === ASSISTANT ===
+
+Switching from `tsc` (TypeScript Compiler) to Vite for building your Node.js CLI app is a great choice, especially since Vite supports importing various file types like `.json` and `.md` out of the box and offers faster builds with esbuild under the hood. Vite is primarily known for frontend development, but it can be configured for Node.js projects as well. Below are brief instructions to help you transition from `tsc` to Vite while addressing your concerns about `tsconfig.json` and build scripts.
+
+### Steps to Switch from `tsc` to Vite
+
+#### 1. Install Vite as a Developer Dependency
+Install Vite and related packages as dev dependencies. Since you're building a Node.js app, you'll also need the `@vitejs/plugin-node` plugin or similar if you want specific Node.js optimizations, though for a CLI, the basic setup often suffices.
+
+```sh
+npm install --save-dev vite @vitejs/plugin-node-typescript typescript
+```
+
+#### 2. Create a Vite Configuration File
+Create a `vite.config.ts` (or `vite.config.js`) file in your project root to configure Vite for a Node.js environment. Here's a basic configuration that supports TypeScript and JSON imports, and can be extended for other file types like `.md` later:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import typescript from '@vitejs/plugin-node-typescript';
+
+export default defineConfig({
+  plugins: [typescript()],
+  build: {
+    outDir: 'dist', // Output directory (same as your current setup)
+    lib: {
+      entry: 'src/codey.ts', // Replace with your main entry file
+      name: 'CodeyBeaver',
+      fileName: 'codey', // Output filename
+      formats: ['cjs'], // CommonJS for Node.js compatibility
+    },
+    rollupOptions: {
+      external: ['commander', 'ora', 'marked', 'marked-terminal', 'prettier'], // Externalize dependencies
+    },
+    minify: false, // Optional: disable minification for readable output
+    sourcemap: true, // Optional: generate source maps for debugging
+  },
+  resolve: {
+    alias: {
+      // Optional: Add aliases if needed for imports
+    },
+  },
+});
+```
+
+- Adjust `entry` to point to your main TypeScript file (e.g., `src/codey.ts` if your source is in a `src` folder).
+- List your dependencies in `external` to avoid bundling them into the output (they'll be required from `node_modules` at runtime).
+
+#### 3. Update Build Script in `package.json`
+Replace your current `build` script that uses `tsc` with a Vite build command. Also, update the `prepublishOnly` script to use Vite.
+
+```json
+"scripts": {
+  "build": "vite build",
+  "prepublishOnly": "npm run build"
+}
+```
+
+#### 4. Can You Keep `tsconfig.json` the Same?
+- **Yes, mostly**: Vite respects your `tsconfig.json` for TypeScript compilation settings, so you can keep it largely the same. However, Vite uses `esbuild` for fast compilation, which might ignore some `tsc`-specific options (like `moduleResolution: "Bundler"` if not fully supported). Generally, your current `tsconfig.json` should work fine for a Node.js CLI.
+- **Suggested Adjustments**: Ensure `module` is set to `ESNext` or `CommonJS` (depending on your output format in Vite config), and Vite will handle the rest. Here's a minimal tweak if needed:
+
+```json
+{
+  "include": ["*.ts", "**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Node", // Changed from "Bundler" if not needed
+    "resolveJsonModule": true, // Enable JSON imports
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "rootDirs": ["."],
+    "outDir": "dist"
+  }
+}
+```
+
+- `resolveJsonModule: true` is crucial for importing `.json` files like `package.json` directly in your TypeScript code.
+
+#### 5. Importing Other File Types (e.g., `.json`, `.md`)
+- **JSON**: With `resolveJsonModule: true` in `tsconfig.json`, you can import JSON files directly:
+  ```typescript
+  import packageJson from '../package.json';
+  console.log(packageJson.version);
+  ```
+- **Markdown (`.md`)**: Vite supports importing `.md` files as raw text or processed content via plugins. Install `@vitejs/plugin-markdown` or similar for future Markdown support:
+  ```sh
+  npm install --save-dev @vitejs/plugin-markdown
+  ```
+  Update `vite.config.ts`:
+  ```typescript
+  import markdown from '@vitejs/plugin-markdown';
+
+  export default defineConfig({
+    plugins: [typescript(), markdown()],
+    // ... other config ...
+  });
+  ```
+  Then import `.md` files:
+  ```typescript
+  import markdownContent from './readme.md';
+  console.log(markdownContent);
+  ```
+
+#### 6. Build and Test
+- Run the build:
+  ```sh
+  npm run build
+  ```
+- Check the `dist` folder for your compiled output (e.g., `dist/codey.js`).
+- Test your CLI locally:
+  ```sh
+  node dist/codey.js prompt "Test prompt"
+  ```
+
+#### 7. Update `package.json` `bin` Field (if needed)
+Ensure your `bin` field points to the Vite-built output:
+```json
+"bin": {
+  "codey": "./dist/codey.js"
+}
+```
+
+### Summary
+- **Install Vite**: Add as a dev dependency with necessary plugins.
+- **Config File**: Create `vite.config.ts` for Node.js builds with TypeScript and custom file support.
+- **Build Script**: Replace `tsc` with `vite build` in `package.json`.
+- **tsconfig.json**: Keep mostly the same, enable `resolveJsonModule` for JSON imports, adjust `moduleResolution` if needed.
+- **File Imports**: JSON works with `tsconfig` tweak; Markdown and others via Vite plugins.
+
+This setup should provide faster builds and flexibility for importing various file types. Let me know if you need more detailed guidance on Vite configuration or run into specific issues during the transition!
+
+# === USER ===
+
 
