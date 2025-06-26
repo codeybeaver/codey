@@ -3,7 +3,7 @@ import { parseChatLogFromText } from "../util/parse.js";
 import { readStdin } from "../util/stdin.js";
 
 export async function handlePrompt(
-  input: string,
+  input: string | undefined,
   opts: {
     model?: string;
     chunk?: boolean;
