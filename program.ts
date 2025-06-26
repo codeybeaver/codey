@@ -10,7 +10,7 @@ const program = new Command();
 
 program
   .name("codey")
-  .description("Codey Beaver CLI – LLM-powered coding assistant")
+  .description("Codey: LLM-powered coding assistant")
   .version("0.1.1");
 
 program
@@ -77,17 +77,13 @@ program
   .description(
     "Format Markdown input with proper line wrapping (argument or stdin)",
   )
-  .action(async (input: string | undefined) => {
-    await handleFormat({ input });
-  });
+  .action(handleFormat);
 
 program
   .command("color [input]")
   .description(
     "Apply syntax highlighting to Markdown input (argument or stdin)",
   )
-  .action(async (input: string | undefined) => {
-    await handleColor({ input });
-  });
+  .action(handleColor);
 
 export { program };
