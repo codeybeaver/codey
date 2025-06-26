@@ -2,18 +2,15 @@ import { generateChatCompletionStream } from "../util/ai.js";
 import { parseChatLogFromText } from "../util/parse.js";
 import { readStdin } from "../util/stdin.js";
 
-export async function handlePrompt({
-  prompt,
-  opts: { model, chunk, addDelimiters },
-}: {
-  prompt?: string;
+export async function handlePrompt(
+  input: string,
   opts: {
     model?: string;
     chunk?: boolean;
     addDelimiters?: boolean;
-  };
-}) {
-  let promptText = prompt;
+  },
+) {
+  let promptText = input;
   if (!promptText && !process.stdin.isTTY) {
     promptText = (await readStdin()).trim();
   }
@@ -25,7 +22,7 @@ export async function handlePrompt({
   try {
     const stream = await generateChatCompletionStream({
       messages,
-      model: model || settings.model,
+      model: opts.model || settings.model,
     });
 
     async function* withTimeout<T>(
@@ -42,8 +39,8 @@ export async function handlePrompt({
       }
     }
 
-    if (addDelimiters) {
-      if (chunk) {
+    if (opts.addDelimiters) {
+      if (opts.chunk) {
         process.stdout.write(
           `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}` })}\n`,
         );
@@ -57,7 +54,7 @@ export async function handlePrompt({
     for await (const textChunk of withTimeout(stream, 15_000)) {
       if (textChunk) {
         // Replace 'chunk' with your desired flag or variable
-        if (chunk) {
+        if (opts.chunk) {
           process.stdout.write(`${JSON.stringify({ chunk: textChunk })}\n`);
         } else {
           process.stdout.write(textChunk);
@@ -65,8 +62,8 @@ export async function handlePrompt({
       }
     }
 
-    if (addDelimiters) {
-      if (chunk) {
+    if (opts.addDelimiters) {
+      if (opts.chunk) {
         process.stdout.write(
           `${JSON.stringify({ chunk: `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}` })}\n`,
         );
@@ -77,7 +74,7 @@ export async function handlePrompt({
       }
     }
 
-    if (!chunk) {
+    if (!opts.chunk) {
       process.stdout.write("\n");
     }
     process.exit(0);

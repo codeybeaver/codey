@@ -22,17 +22,7 @@ program
   .option("--model <model>", "Model to use", "grok-3")
   .option("--chunk", "Put each chunk in a JSON object on a new line", false)
   .option("--add-delimiters", "Add delimiters to the response", false)
-  .action(
-    async (
-      input: string | undefined,
-      opts: { model?: string; chunk?: boolean; addDelimiters?: boolean },
-    ) => {
-      await handlePrompt({
-        prompt: input,
-        opts,
-      });
-    },
-  );
+  .action(handlePrompt);
 
 program
   .command("models")
@@ -69,7 +59,8 @@ program
   .action(handleFormat);
 
 program
-  .command("color [input]")
+  .command("color")
+  .argument("[input]", "Markdown input to colorize (optional; can be piped)")
   .description(
     "Apply syntax highlighting to Markdown input (argument or stdin)",
   )

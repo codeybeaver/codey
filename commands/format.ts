@@ -1,7 +1,7 @@
 import prettier from "prettier";
 import { readStdin } from "../util/stdin.js";
 
-export async function handleFormat({ input }: { input?: string }) {
+export async function handleFormat(input: string) {
   try {
     let formatText = input;
     const isPiped = !process.stdin.isTTY && !input;

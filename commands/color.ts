@@ -2,7 +2,7 @@ import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { readStdin } from "../util/stdin.js";
 
-export async function handleColor({ input }: { input?: string }) {
+export async function handleColor(input: string) {
   let colorText = input;
   const isPiped = !process.stdin.isTTY && !input;
   if (isPiped) {
