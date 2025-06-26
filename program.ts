@@ -36,14 +36,16 @@ program
   .action(handleProviders);
 
 program
-  .command("buffer [input]")
+  .command("buffer")
+  .argument("[input]", "Input text to buffer (optional; can be piped)")
   .description(
     "Buffer input and show a spinner while waiting (argument or stdin)",
   )
   .action(handleBuffer);
 
 program
-  .command("format [input]")
+  .command("format")
+  .argument("[input]", "Markdown input to format (optional; can be piped)")
   .description(
     "Format Markdown input with proper line wrapping (argument or stdin)",
   )
