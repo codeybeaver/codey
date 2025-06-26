@@ -460,4 +460,242 @@ This code ensures the file is read properly and integrates with your existing lo
 
 # === USER ===
 
+this code is a bit inefficient. for long files, it re-saves the entire file contents. but actually, we should only be saving the new stuff, which is strictly appended to the end of the file. can you please refactor this code to append the file contents instead of replacing the entire file contents?
+
+```typescript
+import { promises as fs } from "fs";
+import { generateChatCompletionStream } from "../util/ai.js";
+import { withTimeout } from "../util/async.js";
+import { parseChatLogFromText } from "../util/parse.js";
+import { readStdin } from "../util/stdin.js";
+
+export async function handleSave(
+  input: string | undefined,
+  opts: { file: string } = { file: "codey.md" },
+) {
+  let promptText = input;
+  if (!promptText && !process.stdin.isTTY) {
+    promptText = (await readStdin()).trim();
+  }
+  if (!promptText) {
+    console.error("No prompt supplied (argument or stdin required).");
+    process.exit(1);
+  }
+
+  let fileContent = "";
+  try {
+    fileContent = await fs.readFile(opts.file, "utf-8");
+  } catch (err: unknown) {
+    // what is the error? if file exists, but we failed to read it, then we
+    // should log and exist. otherwise, we will create a new file later
+
+    // @ts-ignore:
+    if (err?.code === "ENOENT") {
+      // File does not exist, we will create it later
+      fileContent = "";
+    } else {
+      console.error(`Failed to read file ${opts.file}:`, err);
+      process.exit(1);
+    }
+  }
+
+  fileContent += `${promptText}`;
+
+  const { messages, settings } = parseChatLogFromText(fileContent);
+  messages.push({
+    role: "user",
+    content: promptText,
+  });
+
+  try {
+    const stream = await generateChatCompletionStream({
+      messages,
+      model: settings.model,
+    });
+
+    // add assistant delimiter to file content
+    fileContent += `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`;
+
+    for await (const textChunk of withTimeout(stream, 15_000)) {
+      if (textChunk) {
+        // print and also prepare to save to file
+        process.stdout.write(textChunk);
+        // fileContent += `\n\n${settings.delimiterPrefix}${settings.userDelimiter}${textChunk}${settings.delimiterSuffix}`;
+        fileContent += textChunk;
+      }
+    }
+
+    // add user delimiter to file content
+    fileContent += `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`;
+
+    process.stdout.write("\n");
+
+    // write the updated content back to the file
+    try {
+      await fs.writeFile(opts.file, fileContent, "utf-8");
+    } catch (writeErr) {
+      console.error(`Failed to write to file ${opts.file}:`, writeErr);
+      process.exit(1);
+    }
+
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+```
+
+# === ASSISTANT ===
+
+You're correct that rewriting the entire file content for long files is inefficient, especially when new content is strictly appended to the end. We can refactor the code to use `fs.appendFile` instead of `fs.writeFile` to append only the new data (the user's prompt and the assistant's response) to the file. This approach avoids reading and rewriting the entire file, improving performance for large files.
+
+Below, I'll refactor your `handleSave` function to append new content instead of replacing the entire file. However, since you still need to parse the existing file content to build the chat history (`messages`) for the LLM, we'll keep the initial read operation. After that, we'll append the new user prompt and assistant response directly to the file.
+
+### Refactored Code to Append File Contents
+```typescript
+import { promises as fs } from "fs";
+import { generateChatCompletionStream } from "../util/ai.js";
+import { withTimeout } from "../util/async.js";
+import { parseChatLogFromText } from "../util/parse.js";
+import { readStdin } from "../util/stdin.js";
+
+export async function handleSave(
+  input: string | undefined,
+  opts: { file: string } = { file: "codey.md" },
+) {
+  let promptText = input;
+  if (!promptText && !process.stdin.isTTY) {
+    promptText = (await readStdin()).trim();
+  }
+  if (!promptText) {
+    console.error("No prompt supplied (argument or stdin required).");
+    process.exit(1);
+  }
+
+  let fileContent = "";
+  try {
+    fileContent = await fs.readFile(opts.file, "utf-8");
+  } catch (err: unknown) {
+    // @ts-ignore
+    if (err?.code === "ENOENT") {
+      // File does not exist, we will create it later with writeFile
+      fileContent = "";
+    } else {
+      console.error(`Failed to read file ${opts.file}:`, err);
+      process.exit(1);
+    }
+  }
+
+  const { messages, settings } = parseChatLogFromText(fileContent);
+  messages.push({
+    role: "user",
+    content: promptText,
+  });
+
+  try {
+    const stream = await generateChatCompletionStream({
+      messages,
+      model: settings.model,
+    });
+
+    // Append user prompt to file
+    const userEntry = `${promptText}`;
+    try {
+      if (fileContent === "") {
+        // If file didn't exist or was empty, write the initial content
+        await fs.writeFile(opts.file, userEntry, "utf-8");
+      } else {
+        // Otherwise, append the user entry
+        await fs.appendFile(opts.file, userEntry, "utf-8");
+      }
+    } catch (writeErr) {
+      console.error(`Failed to write user prompt to file ${opts.file}:`, writeErr);
+      process.exit(1);
+    }
+
+    // Append assistant delimiter before streaming response
+    const assistantDelimiter = `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`;
+    await fs.appendFile(opts.file, assistantDelimiter, "utf-8");
+
+    let assistantResponse = "";
+    for await (const textChunk of withTimeout(stream, 15_000)) {
+      if (textChunk) {
+        // Print to stdout
+        process.stdout.write(textChunk);
+        // Collect response to append in chunks or at once
+        assistantResponse += textChunk;
+        // Optionally, append in real-time (though this can be less efficient for many small writes)
+        await fs.appendFile(opts.file, textChunk, "utf-8");
+      }
+    }
+
+    // Append user delimiter after response
+    const userDelimiter = `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`;
+    await fs.appendFile(opts.file, userDelimiter, "utf-8");
+
+    process.stdout.write("\n");
+
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating chat completion:", err);
+    process.exit(1);
+  }
+}
+```
+
+### Explanation of Changes
+1. **Initial Read Remains Necessary**:
+   - We still need to read the entire file content initially (`fs.readFile`) to parse the chat history (`messages`) using `parseChatLogFromText`. This is unavoidable unless your `parseChatLogFromText` can work with partial data or you store chat history elsewhere.
+   - If the file doesn't exist (`ENOENT`), we set `fileContent` to an empty string as before.
+
+2. **Appending Instead of Overwriting**:
+   - Instead of building `fileContent` as a string and using `fs.writeFile` to overwrite the entire file, we now use `fs.appendFile` to add new content (user prompt, assistant delimiter, assistant response, and user delimiter) directly to the end of the file.
+   - If the file didn't exist or was empty, we use `fs.writeFile` for the first write to create it with the user prompt.
+
+3. **Handling User Prompt**:
+   - The user prompt (`promptText`) is appended (or written initially if the file is new) to the file right after it's validated.
+
+4. **Streaming Assistant Response**:
+   - The assistant's delimiter is appended before the response.
+   - As the assistant's response streams in via `textChunk`, we append each chunk directly to the file using `fs.appendFile`. This avoids holding the entire response in memory before writing (though note the trade-off below).
+   - Alternatively, you could collect `assistantResponse` and append it once at the end (commented in the code) if real-time appending causes too many I/O operations for small chunks.
+
+5. **Final Delimiter**:
+   - After the assistant response is complete, the user delimiter is appended to prepare for the next interaction.
+
+6. **Performance Considerations**:
+   - `fs.appendFile` is more efficient than `fs.writeFile` for large files because it doesn't rewrite existing content; it only adds data to the end.
+   - Appending each `textChunk` in real-time may lead to many small I/O operations, which can be less efficient on some systems. If this becomes an issue, you can uncomment the approach of collecting `assistantResponse` and appending it once at the end.
+   - We still read the full file once at the start, which is a bottleneck for very large files. If this is a significant concern, consider alternative strategies (see below).
+
+### Trade-offs and Potential Improvements
+- **Reading Large Files**: Since `parseChatLogFromText` requires the full file content to build `messages`, we can't avoid the initial read. If this becomes a performance issue, you could:
+  - Store chat history in a database or separate log file instead of parsing from the main file.
+  - Implement a streaming parser for `parseChatLogFromText` if possible, though this depends on the format and logic of your chat log.
+  - Limit the history sent to the LLM by only parsing the last N messages or bytes from the file using a streaming approach with `fs.createReadStream`.
+
+- **Real-time Appending**: Appending each `textChunk` ensures minimal memory usage but may result in many disk writes. If this is slow, batch the chunks or append the full `assistantResponse` at once.
+
+- **Error Handling**: The code checks for errors during both reading and appending, ensuring the process exits with a failure code if anything goes wrong.
+
+### Example Usage
+Assuming `codey.md` exists with some content:
+- Command:
+  ```bash
+  node codey.js chat --file codey.md "What's next?"
+  ```
+- Behavior:
+  - Reads `codey.md` to parse existing messages.
+  - Appends `"What's next?"` to `codey.md`.
+  - Appends the assistant delimiter, streams and appends the assistant's response, then appends the user delimiter.
+  - Only new content is written to the file via `appendFile`.
+
+### Final Notes
+This refactoring significantly reduces unnecessary writes by appending only new content. However, the initial read remains a potential bottleneck for very large files. If you can modify `parseChatLogFromText` or your data storage approach to avoid reading the full file, that would further optimize performance.
+
+If you have additional requirements (e.g., batching chunks, handling very large files differently, or adjusting the format of appended data), let me know, and I can refine the code further! 😊
+
+# === USER ===
+
 

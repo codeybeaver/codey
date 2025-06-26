@@ -21,20 +21,15 @@ export async function handleSave(
   try {
     fileContent = await fs.readFile(opts.file, "utf-8");
   } catch (err: unknown) {
-    // what is the error? if file exists, but we failed to read it, then we
-    // should log and exist. otherwise, we will create a new file later
-
-    // @ts-ignore:
+    // @ts-ignore
     if (err?.code === "ENOENT") {
-      // File does not exist, we will create it later
+      // File does not exist, we will create it later with writeFile
       fileContent = "";
     } else {
       console.error(`Failed to read file ${opts.file}:`, err);
       process.exit(1);
     }
   }
-
-  fileContent += `${promptText}`;
 
   const { messages, settings } = parseChatLogFromText(fileContent);
   messages.push({
@@ -48,30 +43,48 @@ export async function handleSave(
       model: settings.model,
     });
 
-    // add assistant delimiter to file content
-    fileContent += `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`;
+    // Append user prompt to file
+    const userEntry = `${promptText}`;
+    try {
+      if (fileContent === "") {
+        // If file didn't exist or was empty, write the initial content
+        await fs.writeFile(opts.file, userEntry, "utf-8");
+      } else {
+        // Otherwise, append the user entry
+        await fs.appendFile(opts.file, userEntry, "utf-8");
+      }
+    } catch (writeErr) {
+      console.error(
+        `Failed to write user prompt to file ${opts.file}:`,
+        writeErr,
+      );
+      process.exit(1);
+    }
 
+    // Append assistant delimiter before streaming response
+    const assistantDelimiter = `${settings.delimiterPrefix}${settings.assistantDelimiter}${settings.delimiterSuffix}`;
+    await fs.appendFile(opts.file, assistantDelimiter, "utf-8");
+
+    let assistantResponse = "";
     for await (const textChunk of withTimeout(stream, 15_000)) {
       if (textChunk) {
-        // print and also prepare to save to file
+        // Print to stdout
         process.stdout.write(textChunk);
-        // fileContent += `\n\n${settings.delimiterPrefix}${settings.userDelimiter}${textChunk}${settings.delimiterSuffix}`;
-        fileContent += textChunk;
+        // Collect response to append in chunks or at once
+        assistantResponse += textChunk;
+        // Optionally, append in real-time (though this can be less efficient for many small writes)
+        // await fs.appendFile(opts.file, textChunk, "utf-8");
       }
     }
 
-    // add user delimiter to file content
-    fileContent += `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`;
+    // Append the full assistant response to the file
+    await fs.appendFile(opts.file, assistantResponse, "utf-8");
+
+    // Append user delimiter after response
+    const userDelimiter = `${settings.delimiterPrefix}${settings.userDelimiter}${settings.delimiterSuffix}`;
+    await fs.appendFile(opts.file, userDelimiter, "utf-8");
 
     process.stdout.write("\n");
-
-    // write the updated content back to the file
-    try {
-      await fs.writeFile(opts.file, fileContent, "utf-8");
-    } catch (writeErr) {
-      console.error(`Failed to write to file ${opts.file}:`, writeErr);
-      process.exit(1);
-    }
 
     process.exit(0);
   } catch (err) {
