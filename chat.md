@@ -149,7 +149,9 @@ I apologize that the previous ASCII art didn't quite capture the essence of a be
 ```
 
 ### Fun Message
-"Hey there! I'm Codey Beaver, the hardest-working coder in the dam! I chew through bugs and build robust code structures. Let's gnaw on some problems together!"
+"Hey there! I'm Codey Beaver, the hardest-working coder in the dam! I chew
+through bugs and build robust code structures. Let's gnaw on some problems
+together!"
 
 ### Explanation
 - **Head**: The head is rounded with small eyes (`o o`), a nose/mouth area (`^`) to suggest the prominent front teeth beavers are known for, and a general cute expression.
