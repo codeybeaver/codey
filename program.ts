@@ -2,9 +2,9 @@ import { Command } from "commander";
 import { handleBuffer } from "./commands/buffer.js";
 import { handleColor } from "./commands/color.js";
 import { handleFormat } from "./commands/format.js";
-import { handleModels } from "./commands/models.js"
+import { handleModels } from "./commands/models.js";
 import { handlePrompt } from "./commands/prompt.js";
-import { providers } from "./util/ai.js";
+import { handleProviders } from "./commands/providers.js";
 
 const program = new Command();
 
@@ -33,11 +33,7 @@ program
 program
   .command("providers")
   .description("List available providers")
-  .action(() => {
-    for (const provider of providers) {
-      console.log(`- ${provider}`);
-    }
-  });
+  .action(handleProviders);
 
 program
   .command("buffer [input]")
