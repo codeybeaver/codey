@@ -1,30 +1,12 @@
 import { Command } from "commander";
-import { marked } from "marked";
-import TerminalRenderer from "marked-terminal";
 import { handleBuffer } from "./commands/buffer.js";
+import { handleColor } from "./commands/color.js";
 import { handleFormat } from "./commands/format.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { models, providers } from "./util/ai.js";
 import { readStdin } from "./util/stdin.js";
 
 const program = new Command();
-
-/* ───────────────────────────────────────────────────── Helpers ──────────── */
-
-async function handleColor({ input }: { input: string }) {
-  try {
-    // Setup marked-terminal renderer for syntax highlighting
-    // @ts-ignore – marked-terminal lacks full typings
-    marked.setOptions({ renderer: new TerminalRenderer() });
-    const renderedOutput = marked(input);
-    process.stdout.write(`${renderedOutput}\n`);
-  } catch (err) {
-    console.error("Error colorizing input:", err);
-    process.exit(1);
-  }
-}
-
-/* ──────────────────────────────────────────── CLI definition ────────────── */
 
 program
   .name("codey")
@@ -105,20 +87,7 @@ program
     "Apply syntax highlighting to Markdown input (argument or stdin)",
   )
   .action(async (input: string | undefined) => {
-    let colorText = input;
-    const isPiped = !process.stdin.isTTY && !input;
-    if (isPiped) {
-      colorText = (await readStdin()).trim();
-    }
-    if (!colorText) {
-      console.error(
-        "No input supplied for colorizing (argument or stdin required).",
-      );
-      process.exit(1);
-    }
-    await handleColor({
-      input: colorText,
-    });
+    await handleColor({ input });
   });
 
 program
